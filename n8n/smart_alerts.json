@@ -1,0 +1,99 @@
+{
+    "name": "Smart Alerts Handler",
+    "nodes": [
+        {
+            "parameters": {
+                "path": "smart-alert",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                460,
+                300
+            ],
+            "webhookId": "smart-alert"
+        },
+        {
+            "parameters": {
+                "dataType": "string",
+                "value1": "={{$json[\"body\"][\"type\"]}}",
+                "rules": {
+                    "rules": [
+                        {
+                            "value2": "critical"
+                        },
+                        {
+                            "value2": "warning"
+                        }
+                    ]
+                }
+            },
+            "name": "Switch Alert Type",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                660,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "console.log('CRITICAL ALERT:', $input.all()[0].json.body.message);\nreturn $input.all();"
+            },
+            "name": "Log Critical",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                880,
+                200
+            ]
+        },
+        {
+            "parameters": {},
+            "name": "No Op",
+            "type": "n8n-nodes-base.noOp",
+            "typeVersion": 1,
+            "position": [
+                880,
+                400
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Switch Alert Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Switch Alert Type": {
+            "main": [
+                [
+                    {
+                        "node": "Log Critical",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "No Op",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": true,
+    "settings": {},
+    "id": "1"
+}

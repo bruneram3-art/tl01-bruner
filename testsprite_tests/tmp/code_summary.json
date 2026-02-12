@@ -1,0 +1,51 @@
+{
+    "tech_stack": [
+        "TypeScript",
+        "React",
+        "Vite",
+        "Tailwind CSS",
+        "Recharts",
+        "Supabase",
+        "SheetJS"
+    ],
+    "features": [
+        {
+            "name": "Main Application Logic",
+            "description": "Core application state, Excel processing, and routing.",
+            "files": [
+                "App.tsx"
+            ]
+        },
+        {
+            "name": "Dashboard Components",
+            "description": "UI components for displaying metrics and headers.",
+            "files": [
+                "components/DashboardHeader.tsx",
+                "components/MetricCard.tsx"
+            ]
+        },
+        {
+            "name": "Production Components",
+            "description": "Detailed views and simulation tools for production data.",
+            "files": [
+                "components/PcpDetailView.tsx",
+                "components/ScenarioSimulator.tsx",
+                "components/ScenarioComparator.tsx"
+            ]
+        },
+        {
+            "name": "Configuration",
+            "description": "Modals for configuring costs and settings.",
+            "files": [
+                "components/CostConfigModal.tsx"
+            ]
+        },
+        {
+            "name": "Data Services",
+            "description": "Supabase client for data persistence.",
+            "files": [
+                "services/supabaseClient.ts"
+            ]
+        }
+    ]
+}

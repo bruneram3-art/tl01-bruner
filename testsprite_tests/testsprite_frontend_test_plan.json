@@ -1,0 +1,283 @@
+[
+  {
+    "id": "TC001",
+    "title": "Excel Import with Multiple Sheets",
+    "description": "Verify that the system correctly imports Excel files with multiple sheets, including automatic header detection, date conversion, and handling of merged and formatted cells without data loss.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload a multi-sheet Excel file containing production and target data with merged cells and formatted headers."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that all sheets are imported correctly with proper header recognition."
+      },
+      {
+        "type": "assertion",
+        "description": "Validate that merged cells' data is accurately converted and displayed."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm dates are automatically converted to the correct format."
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Data Validation for Missing SAP Codes and Inconsistencies",
+    "description": "Check the system auto-identifies missing SAP codes and data inconsistencies during Excel import, and alerts the user appropriately.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload an Excel file with some missing SAP codes and inconsistent data entries."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the system detects missing SAP codes and flags inconsistent records."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm user receives clear alert messages indicating the issues."
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Dashboard KPI Display Accuracy",
+    "description": "Verify that all KPIs (Total Production, Average Gas and Energy Consumption, Average Yield, Productivity, Setup Time, Estimated Extra Cost) are calculated correctly and displayed in real-time on the dashboard.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload valid daily production and target data Excel files."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm all KPIs on the dashboard match expected values based on the input data."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify KPI values update dynamically when data changes."
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "KPI Target Comparison with Color Coding",
+    "description": "Validate that dashboard charts show daily production vs target and specific consumption over time, with accurate color-coded visual indicators reflecting whether targets are met.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload production and target data with values above, at, and below targets."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify charts reflect correct target comparisons."
+      },
+      {
+        "type": "assertion",
+        "description": "Check color coding matches target achievement status (e.g. green for meeting, red for missing)."
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Hybrid Forecasting Accuracy",
+    "description": "Test month-end forecasting that combines executed production data with planned orders to provide accurate projections.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Provide partial month executed production and planned orders data."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm forecasted month-end production is correctly calculated and displayed."
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Scenario Simulator Responsiveness and Accuracy",
+    "description": "Verify scenario simulator allows user input for variables like remaining workdays, expected efficiency, and daily production rate, and instantly updates forecast projections accordingly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access scenario simulator component."
+      },
+      {
+        "type": "action",
+        "description": "Adjust remaining workdays, expected efficiency, and daily production rate."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify forecasts update immediately reflecting input variable changes."
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Cost Configuration and Waste Calculation Accuracy",
+    "description": "Check that users can configure unit costs for inputs, and that the system calculates financial waste with precision based on these costs.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open cost configuration modal and input unit costs for relevant inputs."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that configured costs are saved."
+      },
+      {
+        "type": "action",
+        "description": "Trigger waste calculation on dashboard."
+      },
+      {
+        "type": "assertion",
+        "description": "Validate that estimated extra cost reflects the newly configured unit costs accurately."
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Batch Upsert of Target Data to Supabase",
+    "description": "Verify secure persistence of target data using batch 'Upsert' functionality through spreadsheet upload to Supabase backend.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload updated target data spreadsheet to trigger batch upsert."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify data is correctly saved in Supabase without duplication or loss."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm upsert operation does not break when data contains existing and new records."
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Date Filtering for Partial Month Analysis",
+    "description": "Check that filtering data by date range correctly adjusts dashboard KPIs and charts for partial month analysis.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Apply date filter for a subset of the current month."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify all KPI values and charts update to reflect only the filtered date range."
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Report Export to PDF and Image",
+    "description": "Validate export functionality generates accurate, readable PDF and image reports matching the on-screen dashboard content.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Trigger export of current dashboard view as PDF."
+      },
+      {
+        "type": "assertion",
+        "description": "Check PDF content matches on-screen dashboard layout and data."
+      },
+      {
+        "type": "action",
+        "description": "Trigger export of current dashboard view as image."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify image export accurately captures dashboard visuals and data."
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Production Plan Comparison Mode Display",
+    "description": "Verify the comparison mode enable users to visually evaluate different production plan versions side-by-side.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Activate production plan comparison mode."
+      },
+      {
+        "type": "action",
+        "description": "Load two different production plan data sets."
+      },
+      {
+        "type": "assertion",
+        "description": "Check that both plans are displayed clearly with differences highlighted."
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "System Performance with Large Data Sets",
+    "description": "Test UI responsiveness and performance when handling large Excel files and data sets to ensure no lag or crashes occur client-side.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload a large Excel file with extensive multi-sheet production data."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm UI remains responsive during and after data import."
+      },
+      {
+        "type": "action",
+        "description": "Navigate through dashboard components and simulator."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no performance degradation or rendering issues."
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Secure Backend Integration Using Environment Variables",
+    "description": "Verify that sensitive data and API keys required for Supabase backend integration are managed securely using environment variables, and that the system does not expose such information.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Review application runtime environment and source code for configuration."
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm that Supabase credentials are accessed via environment variables only."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no credentials are hard-coded or exposed in client-side code."
+      }
+    ]
+  }
+]

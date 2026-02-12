@@ -1,0 +1,17 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "executionArgs": {
+    "projectName": "n8n",
+    "projectPath": "c:/Users/40000398/OneDrive - ArcelorMittal/Desktop/n8n",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user-_2X0BqQJcDsC1VzbkREa58OGbyCKLv7TbHe3yfGv1A1ktiuubT0TDDvsUas06uXhF6LJa-0Ai03yLpLGGMUoqv8rq8NLnZ7ql_rRK9XtaSnVh51XGC7f2KQZUNBPxIyRL2w"
+    }
+  },
+  "serverPort": 54660,
+  "proxy": "http://32f97a93-c3c1-42c1-b3ea-bfd1e2cd738a:Ma9lQu6LUq5Qtz6Fo26F1xKowaQ8NIy4@tun.testsprite.com:8080"
+}

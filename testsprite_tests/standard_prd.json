@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "project": "Industrial Predictor Pro",
+    "date": "2026-02-06",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "Industrial Predictor Pro is a web application designed for monitoring, analyzing, and forecasting industrial production metrics (PCP). It centralizes complex operational data imported from Excel sheets, automates calculations of key performance indicators such as production, yield, energy/gas consumption, and productivity, while providing robust tools for scenario simulation and monthly closing forecasting.",
+  "core_goals": [
+    "Centralize dispersed production and target data into a single visual platform.",
+    "Automate error-prone manual calculations for critical indicators like Yield and Specific Consumption.",
+    "Provide accurate month-end forecasts based on current pace and planned orders.",
+    "Enable quick scenario simulations to evaluate financial and operational impacts."
+  ],
+  "key_features": [
+    "Excel data import with multi-sheet support, automatic header detection, intelligent date conversion, and handling of merged/formatted cells.",
+    "Validation of data including auto-identification of missing SAP codes and inconsistencies.",
+    "Interactive dashboard presenting real-time KPIs such as Total Production, Average Gas and Energy Consumption, Average Yield, Productivity, Setup Time, and Estimated Extra Cost.",
+    "Dynamic charts for daily production versus target and specific consumption over time, with color-coded visual indicators for target achievements.",
+    "Hybrid forecasting combining executed production with planned orders for month-end projection.",
+    "Scenario simulator allowing adjustment of variables like remaining workdays, expected efficiency, and daily production rate to see immediate impacts.",
+    "Configurable cost management to enter unit costs of inputs for precise financial waste calculation.",
+    "Secure persistence of target data in Supabase with batch update ('Upsert') functionality via spreadsheet upload.",
+    "Auxiliary features including date filtering for partial month analysis, report export to PDF/image, and production plan comparison mode."
+  ],
+  "user_flow_summary": [
+    "User uploads daily production and target Excel files with automatic processing and validation.",
+    "Dashboard displays current KPIs and graphs reflecting production metrics and target comparisons.",
+    "User accesses scenario simulator to adjust variables influencing production forecasts and views immediate updated projections.",
+    "User configures cost parameters for accurate extra cost calculations and financial analysis.",
+    "Data including updated targets is saved securely to the backend via Supabase integration.",
+    "Users can export the dashboard view as PDF or image report for sharing or record-keeping.",
+    "Users use the comparison mode to evaluate different production plan versions visually."
+  ],
+  "validation_criteria": [
+    "Successful import and correct parsing of Excel files supporting multiple sheets and formatted cells.",
+    "Accurate calculation and display of all KPIs in real-time with correct target comparison color coding.",
+    "Reliable persistence of target data in Supabase with batch update and retrieval.",
+    "Correct functionality of scenario simulator reflecting input variable changes in forecast projections.",
+    "UI responsiveness and performance handling large datasets client-side without lag.",
+    "Security compliance for backend integration via environment variables.",
+    "Export functionality generates accurate, readable PDF/image reports matching the on-screen dashboard.",
+    "Robust detection and alerting for missing or inconsistent data during import."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "React",
+      "Vite",
+      "Tailwind CSS",
+      "Recharts",
+      "Supabase",
+      "SheetJS"
+    ],
+    "features": [
+      {
+        "name": "Main Application Logic",
+        "description": "Core application state, Excel processing, and routing.",
+        "files": [
+          "App.tsx"
+        ]
+      },
+      {
+        "name": "Dashboard Components",
+        "description": "UI components for displaying metrics and headers.",
+        "files": [
+          "components/DashboardHeader.tsx",
+          "components/MetricCard.tsx"
+        ]
+      },
+      {
+        "name": "Production Components",
+        "description": "Detailed views and simulation tools for production data.",
+        "files": [
+          "components/PcpDetailView.tsx",
+          "components/ScenarioSimulator.tsx",
+          "components/ScenarioComparator.tsx"
+        ]
+      },
+      {
+        "name": "Configuration",
+        "description": "Modals for configuring costs and settings.",
+        "files": [
+          "components/CostConfigModal.tsx"
+        ]
+      },
+      {
+        "name": "Data Services",
+        "description": "Supabase client for data persistence.",
+        "files": [
+          "services/supabaseClient.ts"
+        ]
+      }
+    ]
+  }
+}
