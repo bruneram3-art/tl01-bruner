@@ -14,7 +14,13 @@ import { DashboardHeader } from './components/DashboardHeader';
 import { MetricCard } from './components/MetricCard';
 import { CostConfigModal } from './components/CostConfigModal';
 import { ScenarioSimulator } from './components/ScenarioSimulator';
-import { getMetasFromSupabase, updateMetasInSupabase, ensureTableColumns } from './services/supabaseClient';
+import {
+  getMetasFromSupabase,
+  updateMetasInSupabase,
+  ensureTableColumns,
+  getPcpFromSupabase,
+  savePcpToSupabase
+} from './services/supabaseClient';
 import { ScenarioComparator } from './components/ScenarioComparator';
 import { PcpDetailView } from './components/PcpDetailView';
 import { MetallicYieldSimulator } from './components/MetallicYieldSimulator';
@@ -289,6 +295,15 @@ const DashboardWrapper: React.FC = () => {
         console.error("❌ [SISTEMA] Erro crítico ao buscar metas:", err);
         setSupabaseStatus('offline');
       });
+
+    // Busca o PCP automaticamente
+    getPcpFromSupabase()
+      .then(data => {
+        if (data && data.length > 0) {
+          console.log(`✅ [SISTEMA] ${data.length} registros de PCP carregados.`);
+          setPcpData(data);
+        }
+      });
   }, []);
 
   const metasMap = useMemo(() => {
@@ -375,6 +390,36 @@ const DashboardWrapper: React.FC = () => {
 
   }, [pcpData, metasMap, getColumnValue]);
 
+  // Helper: retorna YYYY-MM-DD ou null
+  const getRowDateStr = (val: any): string | null => {
+    if (!val) return null;
+    let date: Date | null = null;
+
+    // Serial Excel
+    if (typeof val === 'number' && val > 30000) {
+      const utc_days = Math.floor(val - 25569);
+      const utc_value = utc_days * 86400;
+      const date_info = new Date(utc_value * 1000);
+      // Ajuste fuso: adiciona minutos do offset para garantir dia correto UTC
+      date_info.setMinutes(date_info.getMinutes() + date_info.getTimezoneOffset());
+      date = new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate() + 1);
+    }
+    // String
+    else if (typeof val === 'string') {
+      if (val.includes('T')) date = new Date(val.split('T')[0]);
+      else if (val.includes('/')) {
+        const parts = val.split('/');
+        if (parts.length === 3) date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      }
+      else if (val.includes('-')) date = new Date(val);
+    }
+
+    if (date && !isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+    return null;
+  };
+
   const hybridForecast = useMemo(() => {
     // Garante formato YYYY-MM-DD para comparação string segura (sem timezone)
     const corteStr = new Date(corteDate).toISOString().split('T')[0];
@@ -389,36 +434,6 @@ const DashboardWrapper: React.FC = () => {
     let pastProd = 0;
     let pastGas = 0;
     let pastEE = 0;
-
-    // Helper: retorna YYYY-MM-DD ou null
-    const getRowDateStr = (val: any): string | null => {
-      if (!val) return null;
-      let date: Date | null = null;
-
-      // Serial Excel
-      if (typeof val === 'number' && val > 30000) {
-        const utc_days = Math.floor(val - 25569);
-        const utc_value = utc_days * 86400;
-        const date_info = new Date(utc_value * 1000);
-        // Ajuste fuso: adiciona minutos do offset para garantir dia correto UTC
-        date_info.setMinutes(date_info.getMinutes() + date_info.getTimezoneOffset());
-        date = new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate() + 1);
-      }
-      // String
-      else if (typeof val === 'string') {
-        if (val.includes('T')) date = new Date(val.split('T')[0]);
-        else if (val.includes('/')) {
-          const parts = val.split('/');
-          if (parts.length === 3) date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-        }
-        else if (val.includes('-')) date = new Date(val);
-      }
-
-      if (date && !isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
-      }
-      return null;
-    };
 
     pcpData.forEach(row => {
       const rawDate = getColumnValue(row, ['_ai_data', 'Início', 'Inicio', 'Data', 'Data Início'], false);
@@ -928,9 +943,29 @@ const DashboardWrapper: React.FC = () => {
             setPcpData(filteredByMonth);
 
             if (filteredByMonth.length > 0) {
-              setSuccessMsg(`Arquivo carregado! ${filteredByMonth.length} registros do mês de referência.`);
-              setCurrentView('pcp_details');
-              navigate('/');
+              setSuccessMsg(`Arquivo carregado! ${filteredByMonth.length} registros. Sincronizando com banco...`);
+
+              const normalizedPcp = filteredByMonth.map(row => ({
+                sap: String(getColumnValue(row, ['_ai_sap', 'Código SAP', 'Código SAP2', 'SAP', 'Codigo SAP2'], false) || "").trim(),
+                op: String(getColumnValue(row, ['OP', 'Ordem'], false) || "").trim(),
+                descricao: String(getColumnValue(row, ['Descrição', 'Descricao'], false) || "").trim(),
+                bitola: String(getColumnValue(row, ['Bitola', 'BITOLA', 'Dimensão'], false) || "").trim(),
+                inicio: getRowDateStr(getColumnValue(row, ['_ai_data', 'Início', 'Inicio', 'Data', 'Data Início'], false)),
+                producao_planejada: getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true),
+                setup: getColumnValue(row, ['_ai_setup', 'Setup'], true),
+                data_sincronizacao: new Date().toISOString()
+              }));
+
+              savePcpToSupabase(normalizedPcp)
+                .then(() => {
+                  setSuccessMsg(`Sincronização concluída! ${filteredByMonth.length} registros salvos no Supabase.`);
+                  setCurrentView('pcp_details');
+                  navigate('/');
+                })
+                .catch(err => {
+                  console.error("Erro ao sincronizar PCP:", err);
+                  setSuccessMsg(`Dados carregados localmente, mas erro ao salvar no banco: ${err.message}`);
+                });
             }
           } else {
             setPcpSecondary(processed);

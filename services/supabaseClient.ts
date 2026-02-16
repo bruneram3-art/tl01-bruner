@@ -271,3 +271,42 @@ export const getProductBySAP = async (sap: string) => {
     return null;
   }
 };
+
+export const getPcpFromSupabase = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('pcp_data')
+      .select('*')
+      .order('inicio', { ascending: true });
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('Erro ao buscar PCP do Supabase:', err);
+    return [];
+  }
+};
+
+export const savePcpToSupabase = async (pcpData: any[]) => {
+  try {
+    // 1. Limpar dados antigos (opcional, dependendo se quer acumular ou substituir)
+    // Para PCP, geralmente substituímos o plano do mês
+    const { error: deleteError } = await supabase
+      .from('pcp_data')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Deleta tudo
+
+    if (deleteError) throw deleteError;
+
+    // 2. Inserir novos dados
+    const { data, error } = await supabase
+      .from('pcp_data')
+      .insert(pcpData);
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("Erro ao salvar PCP no Supabase:", err);
+    throw err;
+  }
+};
