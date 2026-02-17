@@ -619,24 +619,39 @@ const DashboardWrapper: React.FC = () => {
       totalProducao: tp,
       produtividade: { totalProdComProd: tpr, totalHorasCalc: cpr, media: cpr > 0 ? (tpr / cpr).toFixed(2) : 'N/A' },
       massaLinear: { somaML_x_Prod: tml, somaProdComML: cml, media: cml > 0 ? (tml / cml).toFixed(3) : 'N/A' },
+      metas: {
+        gasTotal: tg,
+        energiaTotal: te,
+        rendimentoAcum: trm,
+        contagemComMeta: crm
+      }
     });
 
     // DEBUG: Amostrar os primeiros 10 registros para verificar
     const sampleDebug = data.slice(0, 10).map(row => {
       const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)'], true);
-      const produtividadeVal = getColumnValue(row, ['_ai_produtividade', 'Produtividade', 'Produtividade (t/h)', 'Produt. Nom t/h', 'Produt. Plan t/h'], true);
-      const mlVal = getColumnValue(row, ['_ai_massa_linear', 'Massa Linear', 'g/m', 'kg/m', 'Peso Linear'], true);
-      const bitolaKey = Object.keys(row).find(k => normalize(k).includes('bitola'));
+
+      const sapKey = Object.keys(row).find(k => normalize(k).includes('sap') || normalize(k).includes('codigo'));
+      const sap = sapKey ? String(row[sapKey] || "").trim() : "";
+
+      // Simula busca de meta
+      let metaFound = null;
+      if (sap) metaFound = metasMap[sap] || metasMap[sap.replace(/^0+/, '')];
+
+      const debugMeta = metaFound ? {
+        gas: metaFound.gas || metaFound['Gás Natural (m³)'],
+        energia: metaFound.energia || metaFound['Energia Elétrica (kWh)'],
+        gas_parsed: cleanNumber(metaFound.gas || metaFound['Gás Natural (m³)']),
+        energia_parsed: cleanNumber(metaFound.energia || metaFound['Energia Elétrica (kWh)'])
+      } : 'SEM META';
+
       return {
-        bitola: bitolaKey ? row[bitolaKey] : '?',
-        prod: prod,
-        produtividade_raw: row['Produtividade'] || row['Produtividade (t/h)'] || row['Produt. Nom t/h'] || row['_ai_produtividade'] || 'N/A',
-        produtividade_parsed: produtividadeVal,
-        ml_raw: row['Massa Linear'] || row['_ai_massa_linear'] || row['kg/m'] || 'N/A',
-        ml_parsed: mlVal,
+        sap,
+        prod,
+        meta: debugMeta
       };
     });
-    console.log('📊 AMOSTRA DADOS (10 primeiros):', sampleDebug);
+    console.log('📊 AMOSTRA DADOS (Metas):', sampleDebug);
 
     const avgGas = tp > 0 ? tg / tp : 0;
     const custoExtraGas = tp > 0 ? Math.max(0, (tg - (tp * avgGas)) * costs.gas) : 0;
