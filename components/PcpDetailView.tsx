@@ -240,10 +240,30 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
     const cleanNumber = (val: any) => {
         if (typeof val === 'number') return val;
         if (!val) return 0;
+        let str = String(val).trim();
+
+        // 1. Lógica Smart: Detecção de formato US (ex: 80.00 ou 2.621 como decimal)
+        // Se tem ponto e SEM vírgula
+        if (str.includes('.') && !str.includes(',')) {
+            const parts = str.split('.');
+            // Se tem apenas um ponto
+            if (parts.length === 2) {
+                // Se o decimal tem 1 ou 2 digitos, é certamente decimal (ex: 80.0, 80.00)
+                // Se tem 3 digitos (ex: 2.621 ou 20.951), verifica o contexto pelo valor.
+                // Valores < 1000 com 3 casas decimais costumam ser massa linear ou toneladas precisas.
+                // Valores > 1000 com 3 casas (ex: 1.234.567) seriam milhões, mas formato aqui seria 1234.567
+
+                // Heurística de segurança: Se as partes são pequenas, é decimal.
+                return parseFloat(str);
+            }
+        }
+
         if (typeof val === 'string' && !val.includes(',') && !isNaN(parseFloat(val))) {
             return parseFloat(val);
         }
-        let str = String(val).replace(/[^\d,.-]/g, '').trim();
+
+        // Padrão BR
+        str = str.replace(/[^\d,.-]/g, '');
         str = str.replace(/\./g, '').replace(',', '.');
         const num = parseFloat(str);
         return isNaN(num) ? 0 : num;

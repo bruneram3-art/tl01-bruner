@@ -238,7 +238,24 @@ const DashboardWrapper: React.FC = () => {
   const cleanNumber = (val: any) => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
-    let str = String(val).replace(/[^\d,.-]/g, '').trim().replace(/\./g, '').replace(',', '.');
+    let str = String(val).trim();
+
+    // Detecção de formato US (1.234,56 ou 1234.56) vs BR (1.234,56)
+    // Se tem ponto e NÃO tem vírgula, e o ponto está no fim (ex: 100.50), é US.
+    // Se tem vírgula, assume BR (vírgula decimal).
+    if (str.includes('.') && !str.includes(',')) {
+      // Verifica se parece ano ou milhar (ex: 2024.0 ou 1.000)
+      // Se tiver apenas um ponto e ele separar 1 ou 2 digitos, é decimal US.
+      const parts = str.split('.');
+      if (parts.length === 2 && (parts[1].length === 1 || parts[1].length === 2)) {
+        return parseFloat(str);
+      }
+    }
+
+    // Lógica padrão (BR)
+    str = str.replace(/[^\d,.-]/g, ''); // Remove chars estranhos
+    str = str.replace(/\./g, '');       // Remove pontos de milhar
+    str = str.replace(',', '.');        // Troca vírgula por ponto
     const num = parseFloat(str);
     return isNaN(num) ? 0 : num;
   };
