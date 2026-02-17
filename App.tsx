@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import {
   Flame, Zap, Boxes, Clock, Activity, CheckCircle,
   UploadCloud, Calendar, Database, FileText, Info,
@@ -25,6 +25,7 @@ import { ScenarioComparator } from './components/ScenarioComparator';
 import { PcpDetailView } from './components/PcpDetailView';
 import { MetallicYieldSimulator } from './components/MetallicYieldSimulator';
 import { PodcastView } from './components/PodcastView';
+import { HRSSimulator } from './src/pages/HRSSimulator';
 
 
 // --- Componente de Cartão de Previsão ---
@@ -520,11 +521,15 @@ const DashboardWrapper: React.FC = () => {
       const setup = getColumnValue(row, ['_ai_setup', 'Setup', 'Tempo Setup', 'Minutos Setup'], true);
       ts += setup;
 
-      // Busca produtividade
-      const produtividade = getColumnValue(row, ['_ai_produtividade', 'Produtividade', 'Produtividade (t/h)', 't/h'], true);
-      if (produtividade > 0) { tpr += produtividade; cpr++; }
+      // Busca produtividade e corrige escala (sanidade)
+      let produtividade = getColumnValue(row, ['_ai_produtividade', 'Produtividade', 'Produtividade (t/h)', 't/h'], true);
 
-      // Massa Linear movido para após definição de Meta
+      // Correção heurística de escala:
+      // Se > 500, provavelmente está em kg/h (ex: 60000) -> divide por 1000
+      // Se após isso ainda > 300, pode ser erro de vírgula ou unidade menor -> divide novamente
+      if (produtividade > 500) produtividade /= 1000;
+
+      if (produtividade > 0) { tpr += produtividade; cpr++; }
 
       // Busca SAP para consultar metas
       const sapKey = Object.keys(row).find(k => normalize(k).includes('sap') || normalize(k).includes('codigo'));
@@ -556,6 +561,11 @@ const DashboardWrapper: React.FC = () => {
       if (massaLinear === 0 && meta) {
         massaLinear = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || meta['kg/m'] || 0);
       }
+
+      // Correção heurística para Massa Linear
+      // Vergalhão padrão raramente passa de 10-20 kg/m. Se vier 12000, é g/m ou erro de vírgula.
+      if (massaLinear > 50) massaLinear /= 1000;
+
       if (massaLinear > 0) {
         tml += massaLinear * prod; // Acumula (Massa * Produção) para média ponderada
         cml += prod;               // Acumula o volume de produção considerado
@@ -1106,8 +1116,12 @@ const DashboardWrapper: React.FC = () => {
     return { healthScore: Math.floor(Math.max(0, score)), healthIssues: issues };
   }, [pcpData, missingSaps]);
 
-  const handleToggleView = (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield') => {
-    setCurrentView(view);
+  const handleToggleView = (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs') => {
+    if (view === 'hrs') {
+      navigate('/simulador-hrs');
+      return;
+    }
+    setCurrentView(view as any);
     navigate('/'); // Garante que volta para a rota base ao clicar nos botões do header
   };
 
@@ -1412,60 +1426,68 @@ const DashboardWrapper: React.FC = () => {
     </>
   );
 
+  const location = useLocation();
+  const isFullScreen = location.pathname === '/simulador-hrs';
+
   return (
-    <div className="min-h-screen pb-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 selection:bg-blue-200">
-      <header className="backdrop-blur-xl bg-white/50 border-b border-white/40 sticky top-0 z-50 px-8 py-4 shadow-lg">
+    <div className={`min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 selection:bg-blue-200 ${isFullScreen ? 'overflow-hidden' : 'pb-20'}`}>
+      {!isFullScreen && (
+        <header className="backdrop-blur-xl bg-white/50 border-b border-white/40 sticky top-0 z-50 px-8 py-4 shadow-lg">
+          <DashboardHeader
+            onFileUpload={handleFileUpload} pcpLoaded={pcpData.length > 0} metasLoaded={metaData.length > 0}
+            onGenerate={() => handleToggleView('forecast')} onSave={() => setSuccessMsg("Dados Salvos!")}
+            loading={loading} hasForecast={pcpData.length > 0} currentView={currentView} onToggleView={handleToggleView}
+            onConfigCosts={() => setShowCostConfig(true)}
+            healthScore={healthScore}
+            healthIssues={healthIssues}
+            // @ts-ignore
+            onUploadSecondary={(file) => handleFileUpload(file, 'pcp_sec')}
+            hasSecondary={pcpSecondary.length > 0}
+            onOpenComparator={() => { setShowComparator(true); navigate('/comparator'); }}
+            // @ts-ignore
+            alertRules={alertRules}
+            // @ts-ignore
+            onUpdateAlertRules={setAlertRules}
+            currentMetrics={{
+              rendimento: calculatedTotals.avgRM,
+              gas: calculatedTotals.avgGas,
+              energia: calculatedTotals.avgEE,
+              producao: calculatedTotals.totalProducao
+            }}
+            supabaseStatus={supabaseStatus}
+          />
+        </header>
+      )}
 
-        <DashboardHeader
-          onFileUpload={handleFileUpload} pcpLoaded={pcpData.length > 0} metasLoaded={metaData.length > 0}
-          onGenerate={() => handleToggleView('forecast')} onSave={() => setSuccessMsg("Dados Salvos!")}
-          loading={loading} hasForecast={pcpData.length > 0} currentView={currentView} onToggleView={handleToggleView}
-          onConfigCosts={() => setShowCostConfig(true)}
-          healthScore={healthScore}
-          healthIssues={healthIssues}
-          // @ts-ignore
-          onUploadSecondary={(file) => handleFileUpload(file, 'pcp_sec')}
-          hasSecondary={pcpSecondary.length > 0}
-          onOpenComparator={() => { setShowComparator(true); navigate('/comparator'); }}
-          // @ts-ignore
-          alertRules={alertRules}
-          // @ts-ignore
-          onUpdateAlertRules={setAlertRules}
-          currentMetrics={{
-            rendimento: calculatedTotals.avgRM,
-            gas: calculatedTotals.avgGas,
-            energia: calculatedTotals.avgEE,
-            producao: calculatedTotals.totalProducao
-          }}
-          supabaseStatus={supabaseStatus}
-        />
-      </header>
-
-      <main className="max-w-[1600px] mx-auto px-8 py-10" id="dashboard-content">
-        {/* DEBUG PANEL - ATIVO (Solicitação do Usuário) */}
-        <div className="bg-slate-900 text-emerald-400 p-4 mb-6 rounded-xl font-mono text-xs shadow-lg border border-emerald-900/50 overflow-x-auto">
-          <h3 className="font-bold text-white mb-2 border-b border-emerald-900 pb-1">🔍 DIAGNÓSTICO DE DADOS (SUPABASE)</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p><span className="text-slate-400">Status Conexão:</span> <span className="font-bold">{supabaseStatus}</span></p>
-              <p><span className="text-slate-400">Total Metas Baixadas:</span> <span className="font-bold text-white">{metaData.length}</span></p>
-              <p><span className="text-slate-400">Total Indexado no Mapa:</span> <span className="font-bold text-white">{Object.keys(metasMap).length}</span></p>
-              <p><span className="text-slate-400">Produtos Falhos (Missing):</span> <span className="font-bold text-red-400">{missingSaps.length}</span></p>
-            </div>
-            <div>
-              <p className="text-slate-400 mb-1">Chaves da 1ª Meta (Raw do Banco):</p>
-              <div className="bg-black/50 p-2 rounded text-amber-300 break-all">
-                {metaData.length > 0 ? JSON.stringify(Object.keys(metaData[0] || {})) : 'Nenhum dado carregado'}
+      <main className={isFullScreen ? "h-screen w-screen overflow-hidden" : "max-w-[1600px] mx-auto px-8 py-10"} id="dashboard-content">
+        {/* DEBUG PANEL - ATIVO (Solicitação do Usuário) - Ocultar em FullScreen */}
+        {!isFullScreen && (
+          <div className="bg-slate-900 text-emerald-400 p-4 mb-6 rounded-xl font-mono text-xs shadow-lg border border-emerald-900/50 overflow-x-auto">
+            <h3 className="font-bold text-white mb-2 border-b border-emerald-900 pb-1">🔍 DIAGNÓSTICO DE DADOS (SUPABASE)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p><span className="text-slate-400">Status Conexão:</span> <span className="font-bold">{supabaseStatus}</span></p>
+                <p><span className="text-slate-400">Total Metas Baixadas:</span> <span className="font-bold text-white">{metaData.length}</span></p>
+                <p><span className="text-slate-400">Total Indexado no Mapa:</span> <span className="font-bold text-white">{Object.keys(metasMap).length}</span></p>
+                <p><span className="text-slate-400">Produtos Falhos (Missing):</span> <span className="font-bold text-red-400">{missingSaps.length}</span></p>
+              </div>
+              <div>
+                <p className="text-slate-400 mb-1">Chaves da 1ª Meta (Raw do Banco):</p>
+                <div className="bg-black/50 p-2 rounded text-amber-300 break-all">
+                  {metaData.length > 0 ? JSON.stringify(Object.keys(metaData[0] || {})) : 'Nenhum dado carregado'}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
         <Routes>
           <Route path="/" element={<DashboardContentValues />} />
           {/* @ts-ignore */}
           <Route path="/comparator" element={<ScenarioComparator pcpA={pcpData} pcpB={pcpSecondary} onClose={() => navigate('/')} />} />
           {/* @ts-ignore */}
           {/* @ts-ignore */}
+          <Route path="/simulador-hrs" element={<HRSSimulator />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
 
@@ -1477,10 +1499,8 @@ const DashboardWrapper: React.FC = () => {
         initialMaterialPrice={costs.material}
         onSave={(g, e, m) => setCosts({ gas: g, energy: e, material: m })}
       />
-    </div>
+    </div >
   );
-
-
 };
 
 const App: React.FC = () => {

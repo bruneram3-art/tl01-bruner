@@ -18,3 +18,12 @@
 - [x] Verificar Build Local <!-- id: 19 -->
 - [x] Push para GitHub <!-- id: 20 -->
 - [ ] Conectar Vercel ao GitHub <!-- id: 21 -->
+- [x] Conectar Vercel ao GitHub <!-- id: 21 -->
+- [x] Verificar Deploy Online <!-- id: 22 -->
+
+# Tarefa: Integração HRS (Hot Rolling Simulator?)
+- [x] Entender Lógica de Cálculo (Excel/Manual) <!-- id: 23 -->
+- [x] Criar Interface de Inputs <!-- id: 24 -->
+- [ ] Implementar Algoritmo de Cálculo <!-- id: 25 -->
+- [x] Implementar Visualização 2D (Desenhos) <!-- id: 27 -->
+- [ ] Validar Resultados <!-- id: 26 -->

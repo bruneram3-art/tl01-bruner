@@ -335,7 +335,9 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                     return rm > 0 ? rm.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + '%' : '-';
                 }
                 if (colName === 'Massa Linear') {
-                    const ml = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || 0);
+                    let ml = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || 0);
+                    // Correção de escala (g/m -> kg/m ou erro de vírgula)
+                    if (ml > 50) ml /= 1000;
                     return ml > 0 ? ml.toLocaleString('pt-BR', { minimumFractionDigits: 3 }) : '-';
                 }
                 if (colName.includes('Gás') || colName.includes('Energia')) {
@@ -385,6 +387,13 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
         }
 
         if (isCodeColumn(colName)) return String(value);
+
+        if (colName === 'Produtividade (t/h)') {
+            let val = typeof value === 'number' ? value : cleanNumber(value);
+            // Correção heurística: se > 500, assume kg/h -> t/h
+            if (val > 500) val /= 1000;
+            return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
 
         if (typeof value === 'number') {
             if (Number.isInteger(value)) return value.toLocaleString('pt-BR');
