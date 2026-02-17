@@ -396,7 +396,6 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
         }
 
         if (typeof value === 'number') {
-            if (Number.isInteger(value)) return value.toLocaleString('pt-BR');
             return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         return String(value);
@@ -585,7 +584,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                 />
                 <StatCard
                     title="PRODUTIVIDADE"
-                    value={totals.avgProd.toFixed(2)}
+                    value={totals.avgProd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     unit="t/h"
                     icon={<Activity size={20} className="text-emerald-500" />}
                     color="bg-emerald-500"

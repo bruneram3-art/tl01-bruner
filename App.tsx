@@ -522,14 +522,24 @@ const DashboardWrapper: React.FC = () => {
       ts += setup;
 
       // Busca produtividade e corrige escala (sanidade)
-      let produtividade = getColumnValue(row, ['_ai_produtividade', 'Produtividade', 'Produtividade (t/h)', 't/h'], true);
+      let produtividade = getColumnValue(row, ['_ai_produtividade', 'Produtividade', 'Produtividade (t/h)', 't/h', 'Prod/h', 'Ton/h', 'Produtividade Real'], true);
 
       // Correção heurística de escala:
       // Se > 500, provavelmente está em kg/h (ex: 60000) -> divide por 1000
       // Se após isso ainda > 300, pode ser erro de vírgula ou unidade menor -> divide novamente
       if (produtividade > 500) produtividade /= 1000;
 
-      if (produtividade > 0) { tpr += produtividade; cpr++; }
+      if (produtividade > 0) {
+        // Média PONDERADA pela produção (Volume / Taxa = Horas -> ponderação correta seria: Total Prod / Total Horas)
+        // Mas como não temos horas explícitas sempre, vamos usar a média ponderada pelo volume produzido
+        // Ou manter aritmética? Usuário reclamou de média estranha.
+        // Vamos acumular horas estimadas: horas = Produção / Produtividade
+        const horas = prod / produtividade;
+        if (horas > 0) {
+          tpr += prod; // Total Toneladas onde houve produtividade reportada
+          cpr += horas; // Total Horas Calculadas
+        }
+      }
 
       // Busca SAP para consultar metas
       const sapKey = Object.keys(row).find(k => normalize(k).includes('sap') || normalize(k).includes('codigo'));
@@ -557,7 +567,7 @@ const DashboardWrapper: React.FC = () => {
       }
 
       // Busca massa linear (Linha > Meta)
-      let massaLinear = getColumnValue(row, ['_ai_massa_linear', 'Massa Linear', 'g/m', 'kg/m'], true);
+      let massaLinear = getColumnValue(row, ['_ai_massa_linear', 'Massa Linear', 'g/m', 'kg/m', 'Peso Linear', 'Massa Teórica', 'Massa', 'Peso'], true);
       if (massaLinear === 0 && meta) {
         massaLinear = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || meta['kg/m'] || 0);
       }
@@ -592,7 +602,7 @@ const DashboardWrapper: React.FC = () => {
       avgEE: tp > 0 ? te / tp : 0,
       avgRM: crm > 0 ? (trm / crm) : 0, // Removido * 100 pois o dado já vem em % (ex: 96.5) ou precisa ser ajustado na exibição
       totalSetupHoras: ts / 60,
-      avgProd: cpr > 0 ? (tpr / cpr) : 0,
+      avgProd: cpr > 0 ? (tpr / cpr) : 0, // Agora: Total Produção / Total Horas (t/h real médio)
       avgMassaLinear: cml > 0 ? (tml / cml) : 0,
       metaGas: avgGas,
       metaEE: tp > 0 ? (te / tp) : 0,
@@ -1199,12 +1209,12 @@ const DashboardWrapper: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6">
             <MetricCard title="Produção Total" value={calculatedTotals.totalProducao.toLocaleString()} unit="t" icon={<Boxes className="text-blue-600" />} color="bg-blue-600" />
-            <MetricCard title="Consumo Gás (Plan)" value={calculatedTotals.avgGas.toFixed(2).replace('.', ',')} unit="m³/t" icon={<Flame className="text-orange-600" />} color="bg-orange-600" />
-            <MetricCard title="Consumo Energia (Plan)" value={calculatedTotals.avgEE.toFixed(2).replace('.', ',')} unit="kWh/t" icon={<Zap className="text-yellow-600" />} color="bg-yellow-600" />
-            <MetricCard title="Rendimento Med." value={calculatedTotals.avgRM.toFixed(2).replace('.', ',')} unit="%" icon={<Percent className="text-emerald-600" />} color="bg-emerald-600" />
-            <MetricCard title="Massa Linear" value={calculatedTotals.avgMassaLinear.toFixed(2).replace('.', ',')} unit="kg/m" icon={<Weight className="text-slate-800" />} color="bg-slate-800" />
-            <MetricCard title="Produtividade" value={calculatedTotals.avgProd.toFixed(2).replace('.', ',')} unit="t/h" icon={<BarChart4 className="text-purple-600" />} color="bg-purple-600" />
-            <MetricCard title="Setup" value={calculatedTotals.totalSetupHoras.toFixed(1).replace('.', ',')} unit="h" icon={<Clock className="text-indigo-600" />} color="bg-indigo-600" />
+            <MetricCard title="Consumo Gás (Plan)" value={calculatedTotals.avgGas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="m³/t" icon={<Flame className="text-orange-600" />} color="bg-orange-600" />
+            <MetricCard title="Consumo Energia (Plan)" value={calculatedTotals.avgEE.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="kWh/t" icon={<Zap className="text-yellow-600" />} color="bg-yellow-600" />
+            <MetricCard title="Rendimento Med." value={calculatedTotals.avgRM.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="%" icon={<Percent className="text-emerald-600" />} color="bg-emerald-600" />
+            <MetricCard title="Massa Linear" value={calculatedTotals.avgMassaLinear.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} unit="kg/m" icon={<Weight className="text-slate-800" />} color="bg-slate-800" />
+            <MetricCard title="Produtividade" value={calculatedTotals.avgProd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="t/h" icon={<BarChart4 className="text-purple-600" />} color="bg-purple-600" />
+            <MetricCard title="Setup" value={calculatedTotals.totalSetupHoras.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} unit="h" icon={<Clock className="text-indigo-600" />} color="bg-indigo-600" />
           </div>
           {pcpData.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
