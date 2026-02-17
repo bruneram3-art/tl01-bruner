@@ -612,6 +612,30 @@ const DashboardWrapper: React.FC = () => {
       }
     });
 
+    // DEBUG: Log detalhado ao console para diagnosticar cálculos
+    console.log('📊 DIAGNÓSTICO MÉTRICAS:', {
+      totalProducao: tp,
+      produtividade: { totalProdComProd: tpr, totalHorasCalc: cpr, media: cpr > 0 ? (tpr / cpr).toFixed(2) : 'N/A' },
+      massaLinear: { somaML_x_Prod: tml, somaProdComML: cml, media: cml > 0 ? (tml / cml).toFixed(3) : 'N/A' },
+    });
+
+    // DEBUG: Amostrar os primeiros 10 registros para verificar
+    const sampleDebug = data.slice(0, 10).map(row => {
+      const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)'], true);
+      const produtividadeVal = getColumnValue(row, ['_ai_produtividade', 'Produtividade', 'Produtividade (t/h)', 'Produt. Nom t/h', 'Produt. Plan t/h'], true);
+      const mlVal = getColumnValue(row, ['_ai_massa_linear', 'Massa Linear', 'g/m', 'kg/m', 'Peso Linear'], true);
+      const bitolaKey = Object.keys(row).find(k => normalize(k).includes('bitola'));
+      return {
+        bitola: bitolaKey ? row[bitolaKey] : '?',
+        prod: prod,
+        produtividade_raw: row['Produtividade'] || row['Produtividade (t/h)'] || row['Produt. Nom t/h'] || row['_ai_produtividade'] || 'N/A',
+        produtividade_parsed: produtividadeVal,
+        ml_raw: row['Massa Linear'] || row['_ai_massa_linear'] || row['kg/m'] || 'N/A',
+        ml_parsed: mlVal,
+      };
+    });
+    console.log('📊 AMOSTRA DADOS (10 primeiros):', sampleDebug);
+
     const avgGas = tp > 0 ? tg / tp : 0;
     const custoExtraGas = tp > 0 ? Math.max(0, (tg - (tp * avgGas)) * costs.gas) : 0;
 
