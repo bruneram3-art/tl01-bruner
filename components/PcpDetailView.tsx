@@ -356,8 +356,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                 }
                 if (colName === 'Massa Linear') {
                     let ml = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || 0);
-                    // Correção de escala (g/m -> kg/m apenas se > 500 para não afetar perfis pesados)
-                    if (ml > 500) ml /= 1000;
+                    // Sem correção de escala - dado deveria chegar em kg/m
                     return ml > 0 ? ml.toLocaleString('pt-BR', { minimumFractionDigits: 3 }) : '-';
                 }
                 if (colName.includes('Gás') || colName.includes('Energia')) {
@@ -410,8 +409,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
 
         if (colName === 'Produtividade (t/h)') {
             let val = typeof value === 'number' ? value : cleanNumber(value);
-            // Correção heurística: se > 500, assume kg/h -> t/h
-            if (val > 500) val /= 1000;
+            // Sem correção heurística - dados do PCP já estão em t/h
             return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 

@@ -538,24 +538,24 @@ const DashboardWrapper: React.FC = () => {
       const setup = getColumnValue(row, ['_ai_setup', 'Setup', 'Tempo Setup', 'Minutos Setup'], true);
       ts += setup;
 
-      // Busca produtividade e corrige escala (sanidade)
-      let produtividade = getColumnValue(row, ['_ai_produtividade', 'Produtividade', 'Produtividade (t/h)', 't/h', 'Prod/h', 'Ton/h', 'Produtividade Real'], true);
+      // Busca produtividade - PRIORIDADE nas colunas reais do PCP Excel
+      // O PCP tem: 'Produt. Nom t/h' e 'Produt. Plan t/h' que já estão em t/h
+      let produtividade = getColumnValue(row, [
+        'Produt. Plan t/h', 'Produt. Nom t/h',  // PCP Excel (PRIORIDADE)
+        'Produtividade (t/h)', 'Produtividade',  // Colunas calculadas
+        '_ai_produtividade',                      // Supabase AI
+        't/h', 'Prod/h', 'Ton/h', 'Produtividade Real'
+      ], true);
 
-      // Correção heurística de escala:
-      // Se > 500, provavelmente está em kg/h (ex: 60000) -> divide por 1000
-      // Se após isso ainda > 300, pode ser erro de vírgula ou unidade menor -> divide novamente
-      if (produtividade > 500) produtividade /= 1000;
+      // NENHUMA correção heurística de escala - os dados do PCP já estão em t/h
+      // Se o valor for claramente absurdo (> 1000 t/h é impossível), ignora
+      if (produtividade > 1000) produtividade = 0;
 
-      if (produtividade > 0) {
-        // Média PONDERADA pela produção (Volume / Taxa = Horas -> ponderação correta seria: Total Prod / Total Horas)
-        // Mas como não temos horas explícitas sempre, vamos usar a média ponderada pelo volume produzido
-        // Ou manter aritmética? Usuário reclamou de média estranha.
-        // Vamos acumular horas estimadas: horas = Produção / Produtividade
+      if (produtividade > 0 && prod > 0) {
+        // Média PONDERADA: Total Produção / Total Horas (onde horas = prod / produtividade)
         const horas = prod / produtividade;
-        if (horas > 0) {
-          tpr += prod; // Total Toneladas onde houve produtividade reportada
-          cpr += horas; // Total Horas Calculadas
-        }
+        tpr += prod;  // Total Toneladas com produtividade válida
+        cpr += horas; // Total Horas Calculadas
       }
 
       // Busca SAP para consultar metas
@@ -583,19 +583,21 @@ const DashboardWrapper: React.FC = () => {
         }
       }
 
-      // Busca massa linear (Linha > Meta)
-      let massaLinear = getColumnValue(row, ['_ai_massa_linear', 'Massa Linear', 'g/m', 'kg/m', 'Peso Linear', 'Massa Teórica', 'Massa', 'Peso'], true);
+      // Busca massa linear - PRIORIDADE no dado da própria linha, fallback para meta
+      let massaLinear = getColumnValue(row, [
+        'Massa Linear', 'kg/m', 'g/m', 'Peso Linear',  // Colunas diretas
+        '_ai_massa_linear', 'Massa Teórica', 'Massa', 'Peso'
+      ], true);
       if (massaLinear === 0 && meta) {
         massaLinear = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || meta['kg/m'] || 0);
       }
 
-      // Correção heurística para Massa Linear
-      // Aumentado limiar para 500 para evitar dividir tarugos/perfis pesados (ex: 130 kg/m)
-      // Se vier 250, assume-se 250 kg/m (Perfil Pesado) e não 0.25 kg/m (Fio 6mm em g/m)
-      // Para fios finos, deve-se usar input em kg/m (0.xxx) ou g/m > 500.
-      if (massaLinear > 500) massaLinear /= 1000;
+      // NENHUMA correção de escala - o dado deveria chegar em kg/m
+      // Se parece estar em g/m (valor > 500 como 617 para CA-50 10mm que é 0.617 kg/m)
+      // essa heurística é perigosa porque perfis pesados existem (ex: 130 kg/m para tarugos)
+      // REMOVIDA: if (massaLinear > 500) massaLinear /= 1000;
 
-      if (massaLinear > 0) {
+      if (massaLinear > 0 && prod > 0) {
         tml += massaLinear * prod; // Acumula (Massa * Produção) para média ponderada
         cml += prod;               // Acumula o volume de produção considerado
       }
