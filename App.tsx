@@ -603,13 +603,14 @@ const DashboardWrapper: React.FC = () => {
       }
 
       if (meta) {
-        const gasMeta = cleanNumber(meta.gas || meta['Gás Natural (m³)'] || 0);
-        const eeMeta = cleanNumber(meta.energia || meta['Energia Elétrica (kWh)'] || 0);
+        // Usa getColumnValue para ser tolerante a variações de nome de coluna no objeto Meta também
+        const gasMeta = getColumnValue(meta, ['gas', 'Gas', 'GAS', 'Gás Natural (m³)', 'Consumo Gás', 'GN'], true);
+        const eeMeta = getColumnValue(meta, ['energia', 'Energia', 'EE', 'Energia Elétrica (kWh)', 'Consumo Energia'], true);
 
         tg += prod * gasMeta;
         te += prod * eeMeta;
 
-        const rm = cleanNumber(meta.rm || meta.rendimento || 0);
+        const rm = getColumnValue(meta, ['rm', 'RM', 'meta.rendimento', 'Rendimento', 'Yield'], true);
         if (rm > 0) { trm += rm; crm++; }
       }
     });
