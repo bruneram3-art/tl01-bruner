@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
     Boxes, Flame, Zap, Activity, Clock, BarChart4,
     Search, Filter, Download, ArrowLeft, MoreHorizontal,
-    ChevronDown, ChevronUp
+    ChevronDown, ChevronUp, Weight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { DiagnosticPanel } from './DiagnosticPanel';
@@ -336,8 +336,8 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                 }
                 if (colName === 'Massa Linear') {
                     let ml = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || 0);
-                    // Correção de escala (g/m -> kg/m ou erro de vírgula)
-                    if (ml > 50) ml /= 1000;
+                    // Correção de escala (g/m -> kg/m apenas se > 500 para não afetar perfis pesados)
+                    if (ml > 500) ml /= 1000;
                     return ml > 0 ? ml.toLocaleString('pt-BR', { minimumFractionDigits: 3 }) : '-';
                 }
                 if (colName.includes('Gás') || colName.includes('Energia')) {
@@ -595,6 +595,13 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                     unit="h"
                     icon={<Clock size={20} className="text-purple-500" />}
                     color="bg-purple-500"
+                />
+                <StatCard
+                    title="MASSA LINEAR"
+                    value={totals.avgMassaLinear.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                    unit="kg/m"
+                    icon={<Weight size={20} className="text-slate-600" />}
+                    color="bg-slate-600"
                 />
                 <StatCard
                     title="UTILIZAÇÃO"

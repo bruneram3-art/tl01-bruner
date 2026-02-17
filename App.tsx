@@ -573,8 +573,10 @@ const DashboardWrapper: React.FC = () => {
       }
 
       // Correção heurística para Massa Linear
-      // Vergalhão padrão raramente passa de 10-20 kg/m. Se vier 12000, é g/m ou erro de vírgula.
-      if (massaLinear > 50) massaLinear /= 1000;
+      // Aumentado limiar para 500 para evitar dividir tarugos/perfis pesados (ex: 130 kg/m)
+      // Se vier 250, assume-se 250 kg/m (Perfil Pesado) e não 0.25 kg/m (Fio 6mm em g/m)
+      // Para fios finos, deve-se usar input em kg/m (0.xxx) ou g/m > 500.
+      if (massaLinear > 500) massaLinear /= 1000;
 
       if (massaLinear > 0) {
         tml += massaLinear * prod; // Acumula (Massa * Produção) para média ponderada
