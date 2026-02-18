@@ -375,7 +375,7 @@ const DashboardWrapper: React.FC = () => {
       .channel('public:db_changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'pcp_upload' },
+        { event: '*', schema: 'public', table: 'pcp_data' },
         (payload) => {
           console.log('Realtime PCP update:', payload);
           setLoading(true);
@@ -393,7 +393,7 @@ const DashboardWrapper: React.FC = () => {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'metas_upload' },
+        { event: '*', schema: 'public', table: 'metas_producao' },
         (payload) => {
           console.log('Realtime Metas update:', payload);
           setLoading(true);
