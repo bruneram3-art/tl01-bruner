@@ -19,7 +19,8 @@ import {
   updateMetasInSupabase,
   ensureTableColumns,
   getPcpFromSupabase,
-  savePcpToSupabase
+  savePcpToSupabase,
+  supabase
 } from './services/supabaseClient';
 import { ScenarioComparator } from './components/ScenarioComparator';
 import { PcpDetailView } from './components/PcpDetailView';
@@ -235,6 +236,44 @@ const DashboardWrapper: React.FC = () => {
     { id: '3', metric: 'energia', condition: 'greater_than', value: 50, active: false },
   ]);
 
+  // Efeito Realtime
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:db_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pcp_upload' },
+        (payload) => {
+          console.log('Realtime PCP update:', payload);
+          setLoading(true);
+          // Pequeno delay para garantir que o n8n terminou de processar
+          setTimeout(() => {
+            fetchData();
+            // Feedback visual simples via console ou toast customizado
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-5 font-bold flex items-center gap-2';
+            toast.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Dados atualizados em tempo real!';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+          }, 1500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'metas_upload' },
+        (payload) => {
+          console.log('Realtime Metas update:', payload);
+          setLoading(true);
+          setTimeout(fetchData, 1000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const cleanNumber = (val: any) => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -293,7 +332,8 @@ const DashboardWrapper: React.FC = () => {
     return isNumber ? 0 : '';
   }, []);
 
-  useEffect(() => {
+  // Função de recarregamento de dados
+  const fetchData = useCallback(() => {
     // Garante que as colunas massa_linear e familia existam no banco
     ensureTableColumns();
 
@@ -323,6 +363,49 @@ const DashboardWrapper: React.FC = () => {
         }
       });
   }, []);
+
+  // Efeito inicial
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Efeito Realtime
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:db_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pcp_upload' },
+        (payload) => {
+          console.log('Realtime PCP update:', payload);
+          setLoading(true);
+          // Pequeno delay para garantir que o n8n terminou de processar
+          setTimeout(() => {
+            fetchData();
+            // Feedback visual simples via console ou toast customizado
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-5 font-bold flex items-center gap-2';
+            toast.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Dados atualizados em tempo real!';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+          }, 1500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'metas_upload' },
+        (payload) => {
+          console.log('Realtime Metas update:', payload);
+          setLoading(true);
+          setTimeout(fetchData, 1000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchData]);
 
   const metasMap = useMemo(() => {
     const map: Record<string, any> = {};

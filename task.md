@@ -35,3 +35,8 @@
 - [x] Criar serviço `SmartReportService.ts` (Geração de PDF Textual) <!-- id: 32 -->
 - [x] Implementar Lógica de Análise de Desvios e Plano de Recuperação <!-- id: 33 -->
 - [x] Adicionar botão de exportação no `DashboardHeader` <!-- id: 34 -->
+
+# Tarefa: Realtime Updates (Supabase)
+- [x] Implementar listener `supabase.channel` no `App.tsx` <!-- id: 35 -->
+- [x] Adicionar feedback visual de "Live Update" <!-- id: 36 -->
+- [x] Validar sincronia entre abas <!-- id: 37 -->
