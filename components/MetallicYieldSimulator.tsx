@@ -150,7 +150,9 @@ export const MetallicYieldSimulator: React.FC = () => {
     const [scaleLossPct, setScaleLossPct] = useState<number>(1.5);
 
     const [cutMode, setCutMode] = useState<'shear' | 'saw'>('shear');
-    const [shearChannels, setShearChannels] = useState<number>(1);
+    const [shearChannels, setShearChannels] = useState(1);
+    const [rollerChannels, setRollerChannels] = useState(0); // Novo: Canais do Rolo
+    const [shearProfileQty, setShearProfileQty] = useState(0); // Novo: Qtd Perfil Navalha
     // Estado do Modal de Explicação
     const [showExplanation, setShowExplanation] = useState(false);
     const [headCropSH1, setHeadCropSH1] = useState<number>(100);
@@ -680,7 +682,9 @@ export const MetallicYieldSimulator: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <InputField label="Qtd. Canais do Rolo" value={rollerChannels} onChange={setRollerChannels} />
+                            <InputField label="Qtd. Perfil Navalha" value={shearProfileQty} onChange={setShearProfileQty} />
                             <InputField label="Quantidade de Cortes" value={shearChannels} onChange={setShearChannels} />
                             <OutputField label="Perda Calculada" value={`${calculations.finishingLossM.toFixed(2)} m (${calculations.finishingLossKg.toFixed(2)} kg)`} />
                         </div>
