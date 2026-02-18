@@ -87,7 +87,7 @@ export function calculateMetallicYieldMetrics(inputs: MetallicYieldInputs): Meta
     const cutCount = shearChannels || 0;
 
     if (cuttingMode === 'shear') {
-        // Modo Navalha: 0.25m por corte
+        // Modo Navalha: 0.25m por corte (Confirmado pelo usuário: 17 cortes = 4.25m de perda)
         finishingLossM = cutCount * 0.250;
     } else if (cuttingMode === 'saw') {
         // Modo Serra: 0.50m por corte

@@ -31,6 +31,18 @@ interface Props {
     producao: number;
   };
   supabaseStatus?: 'pending' | 'online' | 'offline';
+  forecastMetrics?: {
+    rendimento: number;
+    gas: number;
+    energia: number;
+    producao: number;
+  };
+  goals?: {
+    rendimento: number;
+    gas: number;
+    energia: number;
+    producao: number;
+  };
 }
 
 export const DashboardHeader: React.FC<Props> = ({
@@ -52,7 +64,9 @@ export const DashboardHeader: React.FC<Props> = ({
   alertRules,
   onUpdateAlertRules,
   currentMetrics,
-  supabaseStatus
+  supabaseStatus,
+  forecastMetrics,
+  goals
 }) => {
   const [showAudit, setShowAudit] = React.useState(false);
   const [showHelp, setShowHelp] = React.useState(false);
@@ -105,6 +119,8 @@ export const DashboardHeader: React.FC<Props> = ({
                   rules={alertRules}
                   onUpdateRules={onUpdateAlertRules}
                   currentMetrics={currentMetrics}
+                  forecastMetrics={forecastMetrics}
+                  goals={goals}
                 />
               )}
 

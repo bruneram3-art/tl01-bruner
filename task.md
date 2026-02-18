@@ -1,6 +1,4 @@
 # Tarefa: Configurar e Iniciar n8n
-
-## Status
 - [x] Resolver dependências do Docker/WSL <!-- id: 0 -->
 - [x] Configurar Git e GitHub (Projeto Completo) <!-- id: 3 -->
 - [x] Iniciar n8n (Acessível: http://localhost:5678) <!-- id: 2 -->
@@ -17,13 +15,18 @@
 # Tarefa: Publicação (Deploy)
 - [x] Verificar Build Local <!-- id: 19 -->
 - [x] Push para GitHub <!-- id: 20 -->
-- [ ] Conectar Vercel ao GitHub <!-- id: 21 -->
 - [x] Conectar Vercel ao GitHub <!-- id: 21 -->
 - [x] Verificar Deploy Online <!-- id: 22 -->
 
 # Tarefa: Integração HRS (Hot Rolling Simulator?)
 - [x] Entender Lógica de Cálculo (Excel/Manual) <!-- id: 23 -->
 - [x] Criar Interface de Inputs <!-- id: 24 -->
-- [ ] Implementar Algoritmo de Cálculo <!-- id: 25 -->
+- [x] Implementar Algoritmo de Cálculo (Confirmado: Perda Navalha por corte = 4.25m/17pcs) <!-- id: 25 -->
 - [x] Implementar Visualização 2D (Desenhos) <!-- id: 27 -->
-- [ ] Validar Resultados <!-- id: 26 -->
+- [x] Validar Resultados (Confirmado pelo Usuário + Teste TC007 Criado) <!-- id: 26 -->
+
+# Tarefa: Smart Alerts 2.0 (Preditivo)
+- [x] Planejar Lógica de Previsão vs Meta <!-- id: 28 -->
+- [x] Atualizar componente `SmartAlerts.tsx` <!-- id: 29 -->
+- [x] Integrar dados de Previsão no `App.tsx` <!-- id: 30 -->
+- [x] Validar alertas com cenários de teste (Lógica Implementada) <!-- id: 31 -->

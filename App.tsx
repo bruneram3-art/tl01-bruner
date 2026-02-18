@@ -1526,6 +1526,18 @@ const DashboardWrapper: React.FC = () => {
               producao: calculatedTotals.totalProducao
             }}
             supabaseStatus={supabaseStatus}
+            forecastMetrics={{
+              rendimento: manualAcum.rm,
+              gas: hybridForecast.gas,
+              energia: hybridForecast.energia,
+              producao: hybridForecast.producao
+            }}
+            goals={{
+              rendimento: calculatedTotals.metaMedRM,
+              gas: hybridForecast.metaGas,
+              energia: hybridForecast.metaEE,
+              producao: hybridForecast.metaProd
+            }}
           />
         </header>
       )}
