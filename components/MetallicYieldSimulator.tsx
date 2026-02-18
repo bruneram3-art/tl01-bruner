@@ -213,6 +213,69 @@ export const MetallicYieldSimulator: React.FC = () => {
         }
     };
 
+
+    // ========== LOGICA DE PREENCHIMENTO AUTOMÁTICO (CANAIS/NAVALHA) ==========
+    const getProcessConfig = (family: string, bitola: string) => {
+        const fam = (family || '').toUpperCase();
+        const bit = (bitola || '').toUpperCase();
+
+        let rChannels = 0;
+        let sProfile = 0;
+
+        // Regra 1: Barra Chata e Redondos -> Canais do Rolo = 0
+        if (fam.includes('FLAT') || fam.includes('CHATA') || fam.includes('ROUND') || fam.includes('REDONDO')) {
+            rChannels = 0;
+        }
+
+        // Regra 2: Quantidade de Perfil na Navalha (Tabela)
+        if (fam.includes('ROUND') || fam.includes('REDONDO')) {
+            // Tabela de Redondos (Rounds)
+            if (bit.includes('1-1/4') || bit.includes('1-3/8')) sProfile = 12;
+            else if (bit.includes('1-1/2') || bit.includes('1-5/8')) sProfile = 11;
+            else if (bit.includes('1-3/4')) sProfile = 10;
+            else if (bit.includes('1-7/8')) sProfile = 8;
+            else if (bit.includes('2-1/8')) sProfile = 7; // Check specific before generic 2"
+            else if (bit.includes('2-1/4')) sProfile = 6;
+            else if (bit.includes('2') && !bit.includes('1/')) sProfile = 7; // Exact 2"
+            else if (bit.includes('2-3/8') || bit.includes('2-1/2')) sProfile = 5;
+            else if (bit.includes('2-5/8') || bit.includes('2-3/4')) sProfile = 4;
+            else if (bit.includes('2-7/8') || bit.includes('3')) sProfile = 3;
+        }
+        else if (fam.includes('ANGLE') || fam.includes('CANTONEIRA')) {
+            // Tabela de Cantoneiras (Equal Angles)
+            if (bit.includes('1-1/2')) { rChannels = 12; sProfile = 12; }
+            else if (bit.includes('1-3/4') || bit.includes('2')) { rChannels = 10; sProfile = 10; } // 2" matches here
+            else if (bit.includes('2-1/2') || bit.includes('3')) { rChannels = 6; sProfile = 6; }
+            else if (bit.includes('4')) { rChannels = 4; sProfile = 3; }
+        }
+        else if (fam.includes('CHANNEL') || fam.includes('U')) {
+            // Vigas U
+            if (bit.includes('3')) { rChannels = 7; sProfile = 7; }
+            else if (bit.includes('4')) { rChannels = 5; sProfile = 6; }
+            else if (bit.includes('6')) { rChannels = 4; sProfile = 4; }
+        }
+        else if (fam.includes('BEAM') || fam.includes('I')) {
+            // Vigas I
+            if (bit.includes('3')) { rChannels = 7; sProfile = 7; }
+            else if (bit.includes('4')) { rChannels = 5; sProfile = 5; }
+            else if (bit.includes('5')) { rChannels = 4; sProfile = 4; }
+            else if (bit.includes('6')) { rChannels = 3; sProfile = 3; }
+        }
+
+        return { rChannels, sProfile };
+    };
+
+    // Efeito para atualizar campos quando produto/bitola muda
+    useEffect(() => {
+        if (selectedBitola && productFamily) {
+            const { rChannels, sProfile } = getProcessConfig(productFamily, selectedBitola);
+            // Só atualiza se for diferente para permitir edição manual posterior se quiser
+            // Mas aqui vamos forçar a regra sempre que mudar o produto
+            setRollerChannels(rChannels);
+            setShearProfileQty(sProfile);
+        }
+    }, [selectedBitola, productFamily]);
+
     const handleBitolaChange = async (bitola: string) => {
         setSelectedBitola(bitola);
 
