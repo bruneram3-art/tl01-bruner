@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Factory, Target, Activity, CloudUpload, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones, Monitor } from 'lucide-react';
+import { Upload, Factory, Target, Activity, CloudUpload, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones, Monitor, FileText } from 'lucide-react';
 import { AuditLogModal } from './AuditLogModal';
 import { HealthScorePanel } from './HealthScorePanel';
 import { HelpCenterModal } from './HelpCenterModal';
@@ -220,12 +220,57 @@ export const DashboardHeader: React.FC<Props> = ({
             )}
           </div>
 
+
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-3">
-            <ActionButton label="Configurar Custos" icon={<DollarSign size={16} />} onClick={onConfigCosts} variant="outline" />
-            <ActionButton label="Histórico" icon={<History size={16} />} onClick={() => setShowAudit(true)} variant="outline" />
-            <ActionButton label="Gerar Previsão" icon={<BarChart4 size={16} />} onClick={onGenerate} disabled={!pcpLoaded || !metasLoaded || loading} loading={loading} variant="primary" />
-            <ActionButton label="Salvar no BD" icon={<CloudUpload size={16} />} onClick={onSave} disabled={!hasForecast || loading} loading={loading} variant="success" />
+            <ActionButton
+              label="Configurar Custos"
+              icon={<DollarSign size={16} />}
+              onClick={onConfigCosts}
+              variant="outline"
+            />
+            <ActionButton
+              label="Histórico"
+              icon={<History size={16} />}
+              onClick={() => setShowAudit(true)}
+              variant="outline"
+            />
+
+            {/* Relatório Inteligente (PDF) */}
+            {forecastMetrics && goals && (
+              <ActionButton
+                label="Relatório PDF"
+                icon={<FileText size={16} />}
+                onClick={() => {
+                  import('../services/SmartReportService').then(mod => {
+                    mod.generateSmartPDFReport({
+                      currentMetrics,
+                      forecastMetrics,
+                      goals
+                    });
+                  });
+                }}
+                variant="secondary"
+                className="bg-indigo-500 hover:bg-indigo-600 text-white border-0"
+              />
+            )}
+
+            <ActionButton
+              label="Gerar Previsão"
+              icon={<BarChart4 size={16} />}
+              onClick={onGenerate}
+              disabled={!pcpLoaded || !metasLoaded || loading}
+              loading={loading}
+              variant="primary"
+            />
+            <ActionButton
+              label="Salvar no BD"
+              icon={<CloudUpload size={16} />}
+              onClick={onSave}
+              disabled={!hasForecast || loading}
+              loading={loading}
+              variant="success"
+            />
           </div>
         </div>
       </div>

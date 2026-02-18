@@ -30,3 +30,8 @@
 - [x] Atualizar componente `SmartAlerts.tsx` <!-- id: 29 -->
 - [x] Integrar dados de Previsão no `App.tsx` <!-- id: 30 -->
 - [x] Validar alertas com cenários de teste (Lógica Implementada) <!-- id: 31 -->
+
+# Tarefa: Smart PDF Reports (Novo)
+- [x] Criar serviço `SmartReportService.ts` (Geração de PDF Textual) <!-- id: 32 -->
+- [x] Implementar Lógica de Análise de Desvios e Plano de Recuperação <!-- id: 33 -->
+- [x] Adicionar botão de exportação no `DashboardHeader` <!-- id: 34 -->
