@@ -30,7 +30,8 @@
     "./*.ts",
     "./*.tsx",
     "./components/**/*",
-    "./services/**/*"
+    "./services/**/*",
+    "./src/**/*"
   ],
   "exclude": [
     "n8n-mcp",

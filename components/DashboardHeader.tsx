@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Factory, Target, Activity, CloudUpload, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones } from 'lucide-react';
+import { Upload, Factory, Target, Activity, CloudUpload, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones, Monitor } from 'lucide-react';
 import { AuditLogModal } from './AuditLogModal';
 import { HealthScorePanel } from './HealthScorePanel';
 import { HelpCenterModal } from './HelpCenterModal';
@@ -14,8 +14,8 @@ interface Props {
   onSave: () => void;
   loading: boolean;
   hasForecast: boolean;
-  currentView: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast';
-  onToggleView: (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast') => void;
+  currentView: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs';
+  onToggleView: (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs') => void;
   onConfigCosts: () => void;
   healthScore?: number;
   healthIssues?: any[];
@@ -159,6 +159,14 @@ export const DashboardHeader: React.FC<Props> = ({
               active={currentView === 'podcast'}
               onClick={() => onToggleView('podcast')}
               badge="NEW"
+            />
+            {/* Botão Simulador HRS */}
+            <NavButton
+              icon={<Monitor size={18} />}
+              label="Simulador HRC"
+              active={currentView === 'hrs'}
+              onClick={() => onToggleView('hrs')}
+              badge="BETA"
             />
           </div>
         </div>
