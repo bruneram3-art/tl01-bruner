@@ -1,4 +1,4 @@
-noimport React from 'react';
+import React from 'react';
 import { useHRS } from './HRSContext';
 import { PassType } from '../../utils/hrsTypes';
 
