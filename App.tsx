@@ -359,7 +359,68 @@ const DashboardWrapper: React.FC = () => {
       .then(data => {
         if (data && data.length > 0) {
           console.log(`✅ [SISTEMA] ${data.length} registros de PCP carregados.`);
-          setPcpData(data);
+
+          // Mapeamento das colunas do Supabase (snake_case) para o Frontend (Excel Headers)
+          const mappedData = data.map((row: any) => ({
+            ...row, // Mantém dados originais
+            'Código SAP2': row.sap,
+            'OP': row.op,
+            'Descrição': row.descricao,
+            'Bitolas': row.bitola,
+            'Familia': row.familia,
+            'Aço': row.aco,
+            'Código MP': row.codigo_mp,
+            'Descrição MP': row.descricao_mp,
+            'Origem Tarugos': row.origem_tarugos,
+            'Destino': row.destino,
+
+            'Início': row.inicio,
+            'Término': row.termino,
+            'Dia da Semana': row.dia_semana,
+
+            'Prod. Acab. (t)': row.producao_planejada,
+            'Produção Apontada': row.producao_apontada,
+            'Tarugos (t)': row.tarugos,
+            'Peças': row.pecas,
+            'Massa Linear': row.massa_linear,
+
+            'Produtividade (t/h)': row.produtividade,
+            'Produt. Nom t/h': row.produtividade_nominal,
+            'IU (%)': row.iu,
+            'IE (%)': row.ie,
+            'Setup': row.setup,
+            'Atrasos/ Ganhos': row.atrasos_ganhos,
+
+            'Cart. M1': row.carteira_m1,
+            'Cart. Futura': row.carteira_futura
+          }));
+
+          setPcpData(mappedData);
+          // Auto-detectar nome do arquivo e revisão dos dados do Supabase
+          const firstRow = data[0];
+          if (firstRow && firstRow.revisao_arquivo && !fileName) {
+            let label = `Revisão ${firstRow.revisao_arquivo} (Supabase)`;
+            if (firstRow.data_modificacao_arquivo) {
+              // Garante que a data seja interpretada como UTC se vier sem 'Z'
+              let dateStr = firstRow.data_modificacao_arquivo;
+              if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                dateStr += 'Z';
+              }
+
+              const fileDate = new Date(dateStr);
+              if (!isNaN(fileDate.getTime())) {
+                const formattedDate = fileDate.toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: 'America/Sao_Paulo'
+                });
+                label = `Revisão ${firstRow.revisao_arquivo} (${formattedDate})`;
+              }
+            }
+            setFileName(label);
+          }
         }
       });
   }, []);
@@ -598,15 +659,15 @@ const DashboardWrapper: React.FC = () => {
   }, [corteDate, pcpData, manualAcum, metasMap, getColumnValue]);
 
   const referenceMonth = useMemo(() => {
-    if (pcpData.length === 0) return "Nenhum dado carregado";
-    const firstDate = getColumnValue(pcpData[0], ['_ai_data', 'Início', 'Inicio', 'Data'], false);
-    if (!firstDate) return "Indeterminado";
-    const parts = String(firstDate).split('/');
-    if (parts.length < 3) return "Indeterminado";
-    const monthIndex = parseInt(parts[1]) - 1;
+    if (!corteDate) return "Indeterminado";
+    const [year, month] = corteDate.split('-');
     const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    return `${months[monthIndex]} / ${parts[2]}`;
-  }, [pcpData, getColumnValue]);
+    const monthIndex = parseInt(month) - 1;
+    if (monthIndex >= 0 && monthIndex < 12) {
+      return `${months[monthIndex]} / ${year}`;
+    }
+    return "Indeterminado";
+  }, [corteDate]);
 
 
   const calculateMetrics = useCallback((data: any[]) => {
@@ -614,7 +675,7 @@ const DashboardWrapper: React.FC = () => {
 
     data.forEach(row => {
       // Busca produção com nomes variados (Prioridade para Qtde REAL)
-      const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true);
+      const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'producao_planejada', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true);
       tp += prod;
 
       // Busca setup
@@ -737,6 +798,14 @@ const DashboardWrapper: React.FC = () => {
     });
     console.log('📊 AMOSTRA DADOS (Metas):', sampleDebug);
 
+
+    // Cálculo do Impacto de Gás pelo Setup (800m³/h)
+    const totalSetupHours = ts / 60;
+    const setupGasPenalty = totalSetupHours * 800;
+
+    // Adiciona penalidade ao Total de Gás
+    tg += setupGasPenalty;
+
     const avgGas = tp > 0 ? tg / tp : 0;
     const custoExtraGas = tp > 0 ? Math.max(0, (tg - (tp * avgGas)) * costs.gas) : 0;
 
@@ -757,6 +826,7 @@ const DashboardWrapper: React.FC = () => {
       metaMedRM: crm > 0 ? trm / crm : 0,
       totalCustoGas: tp * avgGas * costs.gas,
       totalCustoEnergia: tp * (tp > 0 ? te / tp : 0) * costs.energy,
+      setupGasPenalty,
     };
   }, [metasMap, costs, getColumnValue]);
 
@@ -1078,6 +1148,41 @@ const DashboardWrapper: React.FC = () => {
                 // Excel Serial = (UnixTimestamp / 86400000) + 25569
                 const endOfMonthSerial = (monthEnd.getTime() / 86400000) + 25569;
 
+                // --- Lógica de preenchimento (Gap Filling): Proporcional ---
+                const originalEndSerial = lastRow[terminoCol];
+                const originalStartSerial = lastRow[inicioCol];
+
+                if (typeof originalEndSerial === 'number' && typeof originalStartSerial === 'number' && endOfMonthSerial > originalEndSerial) {
+                  const originalDuration = originalEndSerial - originalStartSerial;
+                  const newDuration = endOfMonthSerial - originalStartSerial;
+
+                  if (originalDuration > 0 && newDuration > originalDuration) {
+                    const ratio = newDuration / originalDuration;
+
+                    // Encontra a coluna de Produção original
+                    const prodCol = headers.find(h =>
+                      h === 'Qtde REAL (t)' || h === 'Prod. Acab. (t)' ||
+                      h.includes('Producao') || h.includes('Produção') || h.includes('Qtd')
+                    );
+
+                    if (prodCol) {
+                      const currentProd = cleanNumber(lastRow[prodCol]);
+                      const newProd = currentProd * ratio;
+
+                      const op = lastRow['OP'] || lastRow['Ordem'] || "N/A";
+                      const debugInfo = ` | Ajuste Gap: OP ${op} (${(originalDuration * 24).toFixed(2)}h->${(newDuration * 24).toFixed(2)}h). Prod: ${currentProd.toFixed(1)}->${newProd.toFixed(1)}`;
+                      (window as any).__GAP_DEBUG = debugInfo;
+
+                      console.log(`Gap detectado. Estendendo ordem de ${(originalDuration * 24).toFixed(2)}h para ${(newDuration * 24).toFixed(2)}h.`);
+                      console.log(`Produção ajustada de ${currentProd.toFixed(2)} para ${newProd.toFixed(2)} (Fator: ${ratio.toFixed(4)})`);
+
+                      lastRow[prodCol] = newProd;
+                    }
+                  }
+                } else {
+                  console.warn("Gap Filling ignorado: Data de fim original inválida ou já posterior ao fim do mês.");
+                }
+
                 // Atualiza a coluna de término e término final
                 lastRow[terminoCol] = endOfMonthSerial;
 
@@ -1085,9 +1190,6 @@ const DashboardWrapper: React.FC = () => {
                 if (terminoFinalCol) {
                   lastRow[terminoFinalCol] = endOfMonthSerial;
                 }
-
-                // Opcional: Recalcular produção baseado na produtividade?
-                // Por enquanto manteremos apenas a extensão do tempo para fechar o calendário
 
                 // Atualiza no array
                 filteredByMonth[lastOrderIndex] = lastRow;
@@ -1107,7 +1209,11 @@ const DashboardWrapper: React.FC = () => {
             setPcpData(filteredByMonth);
 
             if (filteredByMonth.length > 0) {
-              setSuccessMsg(`Arquivo carregado! ${filteredByMonth.length} registros. Sincronizando com banco...`);
+              let msg = `Arquivo carregado! ${filteredByMonth.length} registros. Sincronizando com banco...`;
+              if ((window as any).__GAP_DEBUG) {
+                msg += (window as any).__GAP_DEBUG;
+              }
+              setSuccessMsg(msg);
 
               const normalizedPcp = filteredByMonth.map(row => ({
                 sap: String(getColumnValue(row, ['_ai_sap', 'Código SAP', 'Código SAP2', 'SAP', 'Codigo SAP2'], false) || "").trim(),
@@ -1358,7 +1464,18 @@ const DashboardWrapper: React.FC = () => {
             <MetricCard title="Rendimento Med." value={calculatedTotals.avgRM.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="%" icon={<Percent className="text-emerald-600" />} color="bg-emerald-600" />
             <MetricCard title="Massa Linear" value={calculatedTotals.avgMassaLinear.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} unit="kg/m" icon={<Weight className="text-slate-800" />} color="bg-slate-800" />
             <MetricCard title="Produtividade" value={calculatedTotals.avgProd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="t/h" icon={<BarChart4 className="text-purple-600" />} color="bg-purple-600" />
-            <MetricCard title="Setup" value={calculatedTotals.totalSetupHoras.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} unit="h" icon={<Clock className="text-indigo-600" />} color="bg-indigo-600" />
+            <MetricCard
+              title="Setup"
+              value={calculatedTotals.totalSetupHoras.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              unit="h"
+              icon={<Clock className="text-indigo-600" />}
+              color="bg-indigo-600"
+              indicator={{
+                label: "Impacto (+800m³/h)",
+                value: `+${(calculatedTotals.setupGasPenalty || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} m³`,
+                color: "text-indigo-600"
+              }}
+            />
           </div>
           {pcpData.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

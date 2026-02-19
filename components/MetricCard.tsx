@@ -10,9 +10,14 @@ interface Props {
   icon: React.ReactNode;
   color: string;
   inverse?: boolean;
+  indicator?: {
+    label: string;
+    value: string;
+    color?: string;
+  };
 }
 
-export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, icon, color, inverse = false }) => {
+export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, icon, color, inverse = false, indicator }) => {
   let deviation = 0;
   let isGood = false;
   let showDeviation = false;
@@ -57,8 +62,8 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
           {/* Desvio da Meta ou Trend */}
           {showDeviation ? (
             <div className={`flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full shadow-md ${isGood
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                : 'bg-gradient-to-r from-rose-500 to-red-500 text-white animate-pulse'
+              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+              : 'bg-gradient-to-r from-rose-500 to-red-500 text-white animate-pulse'
               }`}>
               {deviation > 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
               {Math.abs(deviation).toFixed(1)}%
@@ -66,10 +71,10 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
             </div>
           ) : trend !== undefined && (
             <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${trend > 0
-                ? 'bg-emerald-50 text-emerald-600'
-                : trend < 0
-                  ? 'bg-rose-50 text-rose-600'
-                  : 'bg-slate-100 text-slate-500'
+              ? 'bg-emerald-50 text-emerald-600'
+              : trend < 0
+                ? 'bg-rose-50 text-rose-600'
+                : 'bg-slate-100 text-slate-500'
               }`}>
               {trend > 0 ? <TrendingUp size={14} /> : trend < 0 ? <TrendingDown size={14} /> : <Minus size={14} />}
               {Math.abs(trend)}%
@@ -95,6 +100,16 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
             <span className="text-xs font-bold text-slate-400 uppercase">Meta:</span>
             <span className="text-sm font-black text-slate-700">
               {meta.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} {unit}
+            </span>
+          </div>
+        )}
+
+        {/* Indicador Extra (ex: Impacto Setup) */}
+        {indicator && (
+          <div className="flex items-center justify-between mt-3 pt-3 border-t-2 border-slate-100">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{indicator.label}</span>
+            <span className={`text-xs font-black ${indicator.color || 'text-slate-600'}`}>
+              {indicator.value}
             </span>
           </div>
         )}

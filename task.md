@@ -11,6 +11,8 @@
 - [x] Corrigir erro de TailwindCSS (Configuração .cjs e content otimizado) <!-- id: 14 -->
 - [x] Validar acesso local (Funcionando!) <!-- id: 17 -->
 - [x] Configurar Automação Híbrida (Rede + Desktop) <!-- id: 18 -->
+- [x] Recuperar e Configurar Caminho de Rede (PCP_SECOES) (Acesso Confirmado!) <!-- id: 38 -->
+- [x] Implementar Script de Upload PCP via Rede (`upload_pcp.cjs`) (Dados Corretos: Produção, Setup, OP) <!-- id: 39 -->
 
 # Tarefa: Publicação (Deploy)
 - [x] Verificar Build Local <!-- id: 19 -->
@@ -40,3 +42,13 @@
 - [x] Implementar listener `supabase.channel` no `App.tsx` <!-- id: 35 -->
 - [x] Adicionar feedback visual de "Live Update" <!-- id: 36 -->
 - [x] Validar sincronia entre abas <!-- id: 37 -->
+
+# Tarefa: Debug Local Server
+- [x] Resolver bloqueio de execução de scripts (PowerShell) <!-- id: 40 -->
+- [x] Iniciar servidor local (npm run dev) <!-- id: 41 -->
+- [x] Corrigir Mês de Referência (Baseado no Corte e não no 1º registro) <!-- id: 42 -->
+- [x] Preencher Gaps de Produção no Fim do Mês (Cálculo via Proporção Temporal) <!-- id: 43 -->
+- [x] Sincronizar Script de Backend (upload_pcp.cjs) com Nova Lógica <!-- id: 44 -->
+- [x] Validar Automação n8n <!-- id: 45 -->
+    - [x] Criar Workflow de Upload Automático (ID: ictcHnhAjdsfLoVZ) <!-- id: 46 -->
+    - [x] Testar Execução via n8n (Sucesso Confirmado 21:06 UTC) <!-- id: 47 -->

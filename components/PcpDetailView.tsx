@@ -31,9 +31,9 @@ const EXPECTED_COLUMNS = [
     'Familia',
     'Bitolas',
     'Destino',
-    'Produt. Nom t/h',
     'IU (%)',
     'IE (%)',
+    'Produt. Nom t/h',
     'Produt. Plan t/h',
     'Prod. Acab. (t)',
     'Tarugos (t)',
@@ -53,6 +53,7 @@ const EXPECTED_COLUMNS = [
     'Término',
     'Termino Final',
     'Peças',
+    'Massa Linear',
     'Aço',
     'Código MP',
     'Descrição MP',
@@ -63,7 +64,7 @@ const EXPECTED_COLUMNS = [
     'Energia Elétrica (kWh)',
     'Rendimento (%)',
     'Utilização (%)',
-    'Produtividade (t/h)'
+    'Produt. Plan t/h'
 ];
 
 export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, onBack, totals, metasMap }) => {
@@ -225,7 +226,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
 
     const ALWAYS_SHOW_COLUMNS = [
         'Meta Gás (m³)', 'Meta Energia (kWh)', 'Gás Natural (m³)', 'Energia Elétrica (kWh)',
-        'Rendimento (%)', 'Utilização (%)', 'Produtividade (t/h)'
+        'Rendimento (%)', 'Utilização (%)', 'Produt. Plan t/h'
     ];
 
     const allColumns = useMemo(() => {
@@ -305,7 +306,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
     const formatCellValue = (value: any, colName: string = '', row: any) => {
         if (colName === 'Meta Gás (m³)' || colName === 'Meta Energia (kWh)' ||
             colName === '_calc_meta_gas' || colName === '_calc_meta_energia' ||
-            colName === 'Rendimento (%)' || colName === 'Massa Linear') {
+            colName === 'Rendimento (%)') {
 
             if (!metasMap || Object.keys(metasMap).length === 0) {
                 return <span title="Nenhuma meta carregada no sistema!" className="text-red-400 font-bold cursor-help">ERR</span>;
@@ -354,11 +355,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                     const rm = cleanNumber(meta.rm || meta.rendimento || meta['Rendimento (%)']);
                     return rm > 0 ? rm.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + '%' : '-';
                 }
-                if (colName === 'Massa Linear') {
-                    let ml = cleanNumber(meta.massa_linear || meta.massa || meta['Massa Linear'] || 0);
-                    // Sem correção de escala - dado deveria chegar em kg/m
-                    return ml > 0 ? ml.toLocaleString('pt-BR', { minimumFractionDigits: 3 }) : '-';
-                }
+
                 if (colName.includes('Gás') || colName.includes('Energia')) {
                     const isGas = colName.includes('Gás');
                     let metaVal = 0;
@@ -393,8 +390,9 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
             if (value > 1000 && value < 100000) return excelSerialToDate(value);
         }
 
-        if (colName.toLowerCase().includes('dia da semana') && typeof value === 'number') {
-            return numberToWeekday(value);
+        if (colName.toLowerCase().includes('dia da semana')) {
+            const num = typeof value === 'string' ? parseInt(value) : value;
+            if (typeof num === 'number' && !isNaN(num)) return numberToWeekday(num);
         }
 
         if (colName === 'IU (%)' || colName === 'IE (%)') {
@@ -407,7 +405,53 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
 
         if (isCodeColumn(colName)) return String(value);
 
-        if (colName === 'Produtividade (t/h)') {
+        if (colName === 'Massa Linear') {
+            let ml = cleanNumber(value);
+
+            // Fallback: Se não veio no PCP, tenta buscar na Meta
+            if (ml === 0 && metasMap) {
+                const sapKey = Object.keys(row).find(k => {
+                    const normalized = String(k).toLowerCase().trim();
+                    return k === 'Código SAP2' || k === 'Codigo SAP2' || (normalized.includes('sap') && !normalized.includes('mp'));
+                });
+                const sap = sapKey ? String(row[sapKey] || "").trim() : "";
+
+                const bitolaKey = Object.keys(row).find(k => {
+                    const normalized = String(k).toLowerCase().trim();
+                    return normalized === 'bitolas' || normalized === 'bitola' || normalized === 'dimensão';
+                });
+                const bitola = bitolaKey ? String(row[bitolaKey] || "").trim() : "";
+
+                let meta = null;
+                if (sap) meta = normalizedMetasMap[sap] || normalizedMetasMap[sap.replace(/^0+/, '')];
+                if (!meta && bitola) meta = normalizedMetasMap[bitola] || normalizedMetasMap[bitola.replace(',', '.')];
+
+                if (meta) {
+                    ml = cleanNumber(meta.massa_linear || meta['Massa Linear'] || 0);
+                }
+            }
+
+            return ml > 0 ? ml.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-';
+        }
+
+        if (isDateColumn(colName)) {
+            // Se for número (Serial Excel)
+            if (typeof value === 'number' && value > 1000 && value < 100000) {
+                return excelSerialToDate(value);
+            }
+            // Se for string ISO
+            if (typeof value === 'string' && (value.includes('T') || value.includes('-'))) {
+                const d = new Date(value);
+                if (!isNaN(d.getTime())) {
+                    return d.toLocaleString('pt-BR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                }
+            }
+        }
+
+        if (colName === 'Produt. Plan t/h') {
             let val = typeof value === 'number' ? value : cleanNumber(value);
             // Sem correção heurística - dados do PCP já estão em t/h
             return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -507,7 +551,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
         XLSX.writeFile(wb, "PCP_Detalhado_Export.xlsx");
     };
 
-    const StatCard = ({ title, value, unit, icon, color }: any) => (
+    const StatCard = ({ title, value, unit, icon, color, indicator }: any) => (
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
             <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">{title}</span>
@@ -515,12 +559,23 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                     <span className="text-xl font-black text-slate-800">{value}</span>
                     <span className="text-[10px] font-bold text-slate-400">{unit}</span>
                 </div>
+                {indicator && (
+                    <div className="mt-2 pt-2 border-t border-slate-100">
+                        <span className="text-[10px] font-semibold text-slate-500 block">{indicator.label}</span>
+                        <span className={`text-[10px] font-bold ${indicator.color || 'text-slate-600'}`}>{indicator.value}</span>
+                    </div>
+                )}
             </div>
-            <div className={`p-2.5 rounded-xl ${color} bg-opacity-10 text-current`}>
+            <div className={`p-2.5 rounded-xl ${color} bg-opacity-10 text-current h-fit`}>
                 {icon}
             </div>
         </div>
     );
+
+    // Cálculo do Gás de Setup: 1h = 800m³
+    const totalSetupHours = footerTotalsResult['Setup'] || totals.totalSetupHoras || 0;
+    const setupGasPenalty = totalSetupHours * 800;
+    const totalGasMeta = (footerTotalsResult['Meta Gás (m³)'] || 0) + setupGasPenalty;
 
     return (
         <div className="p-6 min-h-screen bg-slate-50">
@@ -588,7 +643,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                 />
                 <StatCard
                     title="GÁS NATURAL"
-                    value={((footerTotalsResult['Meta Gás (m³)'] || 0) / (footerTotalsResult['Qtde REAL (t)'] || 1)).toFixed(2)}
+                    value={(totalGasMeta / (footerTotalsResult['Qtde REAL (t)'] || 1)).toFixed(2)}
                     unit="m³/t"
                     icon={<Flame size={20} className="text-orange-500" />}
                     color="bg-orange-500"
@@ -609,10 +664,15 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                 />
                 <StatCard
                     title="SETUP TOTAL"
-                    value={totals.totalSetupHoras.toFixed(1)}
+                    value={totalSetupHours.toFixed(1)}
                     unit="h"
                     icon={<Clock size={20} className="text-purple-500" />}
                     color="bg-purple-500"
+                    indicator={{
+                        label: `Impacto (+800m³/h):`,
+                        value: `+${setupGasPenalty.toLocaleString('pt-BR')} m³`,
+                        color: 'text-purple-600'
+                    }}
                 />
                 <StatCard
                     title="MASSA LINEAR"
@@ -677,19 +737,22 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                             </tr>
                         </thead>
                         <tbody className="bg-white">
-                            {paginatedData.map((row, rowIdx) => (
-                                <tr key={rowIdx} className="border-b border-slate-100 hover:bg-blue-50/40 transition-colors">
-                                    {allColumns.map((colName, colIdx) => (
-                                        <td
-                                            key={colIdx}
-                                            className="px-3 py-2 text-[10px] font-semibold text-slate-700 whitespace-nowrap"
-                                            title={String(row[colName] || '')}
-                                        >
-                                            {formatCellValue(row[colName], colName, row)}
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
+                            {paginatedData.map((row, rowIdx) => {
+                                const isM03 = String(row['OP'] || '').toUpperCase().includes('M03');
+                                return (
+                                    <tr key={rowIdx} className={`border-b border-slate-100 transition-colors ${isM03 ? 'bg-orange-100 hover:bg-orange-200/80' : 'hover:bg-blue-50/40'}`}>
+                                        {allColumns.map((colName, colIdx) => (
+                                            <td
+                                                key={colIdx}
+                                                className="px-3 py-2 text-[10px] font-semibold text-slate-700 whitespace-nowrap"
+                                                title={String(row[colName] || '')}
+                                            >
+                                                {formatCellValue(row[colName], colName, row)}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                         <tfoot className="bg-slate-100 font-bold text-slate-800 sticky bottom-0 z-10 shadow-inner">
                             <tr>

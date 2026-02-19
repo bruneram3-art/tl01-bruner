@@ -247,11 +247,11 @@ export const DataIntegrityPanel: React.FC<DataIntegrityProps> = ({ data, metasMa
                                             </td>
                                             <td className="px-6 py-3 text-right font-mono text-xs font-bold text-slate-500">
                                                 <div>{item.detail || '-'}</div>
-                                                {item.impact > 0 && (
+                                                {item.impact > 0 ? (
                                                     <div className="text-[10px] mt-1 text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md inline-block border border-blue-100">
                                                         Impacto: {item.impact.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} t
                                                     </div>
-                                                )}
+                                                ) : null}
                                             </td>
                                         </tr>
                                     ))}
@@ -261,7 +261,11 @@ export const DataIntegrityPanel: React.FC<DataIntegrityProps> = ({ data, metasMa
 
                         <div className="p-4 border-t bg-slate-50 rounded-b-2xl flex justify-between items-center">
                             <div className="text-sm font-bold text-slate-600">
-                                Impacto Total: <span className="text-blue-700 text-lg ml-1">{selectedIssue.items.reduce((acc, item) => acc + (item.impact || 0), 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} t</span>
+                                {selectedIssue.items.reduce((acc, item) => acc + (item.impact || 0), 0) > 0 && (
+                                    <>
+                                        Impacto Total: <span className="text-blue-700 text-lg ml-1">{selectedIssue.items.reduce((acc, item) => acc + (item.impact || 0), 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} t</span>
+                                    </>
+                                )}
                             </div>
                             <button onClick={() => setSelectedIssue(null)} className="px-5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all active:scale-95">
                                 Fechar

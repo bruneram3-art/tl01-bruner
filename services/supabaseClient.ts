@@ -20,20 +20,50 @@ export const ensureTableColumns = async () => {
   migrationDone = true;
 
   try {
-    // Verifica se as colunas existem tentando um SELECT
-    const { data, error } = await supabase
+    // 1. Verifica Tabela METAS
+    const { error: errorMetas } = await supabase
       .from('metas_producao')
       .select('massa_linear, familia')
       .limit(1);
 
-    if (error) {
-      console.warn('⚠️ Colunas massa_linear/familia podem não existir:', error.message);
-      console.log('📋 Execute no Supabase SQL Editor:');
+    if (errorMetas) {
+      console.warn('⚠️ Colunas massa_linear/familia podem não existir em METAS:', errorMetas.message);
+      console.log('📋 SQL sugerido (Metas):');
       console.log('   ALTER TABLE metas_producao ADD COLUMN IF NOT EXISTS massa_linear NUMERIC;');
       console.log('   ALTER TABLE metas_producao ADD COLUMN IF NOT EXISTS familia TEXT;');
-    } else {
-      console.log('✅ Colunas massa_linear e familia OK. Dados:', data);
     }
+
+    // 2. Verifica Tabela PCP
+    const { error: errorPcp } = await supabase
+      .from('pcp_data')
+      .select('familia, massa_linear, termino, pecas, produtividade, iu, ie')
+      .limit(1);
+
+    if (errorPcp) {
+      console.warn('⚠️ Colunas novas podem não existir em PCP_DATA:', errorPcp.message);
+      console.log('📋 SQL sugerido (PCP):');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS familia TEXT;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS massa_linear NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS termino TEXT;'); // ISO Date String
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS termino_final TEXT;'); // ISO Date String
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS pecas NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS produtividade NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS produtividade_nominal NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS iu NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS ie NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS real_prev NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS qtd_campanha NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS cart_atraso_m0 NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS prod_cart_total NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS paradas_progr NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS setup NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS atrasos_ganhos NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS carteira_m1 NUMERIC;');
+      console.log('   ALTER TABLE pcp_data ADD COLUMN IF NOT EXISTS carteira_futura NUMERIC;');
+    } else {
+      console.log('✅ Schema PCP verificado: Colunas novas existem.');
+    }
+
   } catch (err) {
     console.error('Erro na verificação de schema:', err);
   }
@@ -276,11 +306,62 @@ export const getPcpFromSupabase = async () => {
   try {
     const { data, error } = await supabase
       .from('pcp_data')
-      .select('*')
+      .select(`
+        id, sap, op, descricao, bitola, familia,
+        inicio, termino, termino_final, dia_semana,
+        producao_planejada, producao_apontada, tarugos, pecas, massa_linear, real_prev, qtd_campanha,
+        produtividade, produtividade_nominal, iu, ie, setup, atrasos_ganhos, paradas_progr,
+        aco, codigo_mp, descricao_mp, origem_tarugos, destino,
+        carteira_m1, carteira_futura, cart_atraso_m0, prod_cart_total,
+        revisao_arquivo, data_modificacao_arquivo, data_sincronizacao
+      `)
       .order('inicio', { ascending: true });
 
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error("Erro Supabase Query:", error.message);
+      throw error;
+    }
+
+    // Mapeamento para corresponder às chaves esperadas pelo frontend (Title Case / Excel Headers)
+    // Isso garante que o PcpDetailView exiba as colunas corretamente e na ordem certa
+    const mappedData = data?.map(row => ({
+      ...row, // Mantém chaves originais
+      'Código SAP2': row.sap,
+      'OP': row.op,
+      'Descrição': row.descricao,
+      'Bitolas': row.bitola,
+      'Familia': row.familia,
+      'Início': row.inicio,
+      'Data': row.inicio, // Sinônimo útil
+      'Término': row.termino,
+      'Termino Final': row.termino_final,
+      'Dia da Semana': row.dia_semana,
+      'Qtde REAL (t)': row.producao_planejada,
+      'Produção Apontada': row.producao_apontada,
+      'Peças': row.pecas,
+      'Massa Linear': row.massa_linear,
+      'Real - Prev': row.real_prev,
+      'Qtd Campanha': row.qtd_campanha,
+      'Produt. Plan t/h': row.produtividade,
+      'Produt. Nom t/h': row.produtividade_nominal,
+      'IU (%)': row.iu,
+      'IE (%)': row.ie,
+      'Setup': row.setup,
+      'Atrasos/ Ganhos': row.atrasos_ganhos,
+      'Paradas Progr': row.paradas_progr,
+      'Tarugos (t)': row.tarugos,
+      'Aço': row.aco,
+      'Código MP': row.codigo_mp,
+      'Descrição MP': row.descricao_mp,
+      'Origem Tarugos': row.origem_tarugos,
+      'Destino': row.destino,
+      'Cart. M1': row.carteira_m1,
+      'Cart. Futura': row.carteira_futura,
+      'Cart. Atraso+ M0': row.cart_atraso_m0,
+      'Prod - Cart. Total': row.prod_cart_total
+    })) || [];
+
+    return mappedData;
   } catch (err) {
     console.error('Erro ao buscar PCP do Supabase:', err);
     return [];
