@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Industrial Predictor Pro</string>
+    <string name="title_activity_main">Industrial Predictor Pro</string>
+    <string name="package_name">com.arcelormittal.predictor</string>
+    <string name="custom_url_scheme">com.arcelormittal.predictor</string>
+</resources>

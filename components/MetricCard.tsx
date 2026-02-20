@@ -14,6 +14,7 @@ interface Props {
     label: string;
     value: string;
     color?: string;
+    details?: Array<{ name: string, date: string }>;
   };
 }
 
@@ -104,13 +105,27 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
           </div>
         )}
 
-        {/* Indicador Extra (ex: Impacto Setup) */}
+        {/* Indicador Extra (ex: Impacto Setup ou Volume Aparado) */}
         {indicator && (
-          <div className="flex items-center justify-between mt-3 pt-3 border-t-2 border-slate-100">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{indicator.label}</span>
-            <span className={`text-xs font-black ${indicator.color || 'text-slate-600'}`}>
-              {indicator.value}
-            </span>
+          <div className="mt-3 pt-3 border-t-2 border-slate-100 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{indicator.label}</span>
+              <span className={`text-xs font-black whitespace-nowrap ${indicator.color || 'text-slate-600'}`}>
+                {indicator.value}
+              </span>
+            </div>
+            {indicator.details && indicator.details.length > 0 && (
+              <div className="flex flex-col gap-1 mt-1 p-2 bg-slate-50/50 rounded-lg">
+                {indicator.details.map((detail, idx) => (
+                  <div key={idx} className="flex flex-col gap-0.5 text-[10px] pb-1 border-b border-slate-200/50 last:border-0 last:pb-0">
+                    <span className="font-semibold text-slate-600 truncate" title={detail.name}>{detail.name}</span>
+                    <div className="flex items-center text-left whitespace-nowrap">
+                      <span className="font-medium text-amber-600">Término: {detail.date}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

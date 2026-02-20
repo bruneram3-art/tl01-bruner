@@ -230,11 +230,40 @@ const DashboardWrapper: React.FC = () => {
   const [costs, setCosts] = useState({ gas: 2.10, energy: 0.45, material: 1500.00 });
   const [pcpSecondary, setPcpSecondary] = useState<any[]>([]);
   const [showComparator, setShowComparator] = useState(false);
+  const [n8nStatus, setN8nStatus] = useState<'online' | 'offline'>('offline');
   const [alertRules, setAlertRules] = useState([
     { id: '1', metric: 'rendimento', condition: 'less_than', value: 94, active: true },
     { id: '2', metric: 'gas', condition: 'greater_than', value: 20, active: false },
     { id: '3', metric: 'energia', condition: 'greater_than', value: 50, active: false },
   ]);
+
+  // N8N Health Check Ping
+  useEffect(() => {
+    const checkN8nHealth = async () => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch('http://localhost:5678/healthz', {
+          method: 'GET',
+          mode: 'no-cors',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        // Em 'no-cors', res.ok é false e res.type é 'opaque', mas se não caiu no catch, o servidor está respondendo.
+        if (res.type === 'opaque' || res.ok) {
+          setN8nStatus('online');
+        } else {
+          setN8nStatus('offline');
+        }
+      } catch (e) {
+        setN8nStatus('offline');
+      }
+    };
+
+    checkN8nHealth();
+    const interval = setInterval(checkN8nHealth, 15000); // Check every 15s
+    return () => clearInterval(interval);
+  }, []);
 
   // Efeito Realtime
   useEffect(() => {
@@ -671,12 +700,33 @@ const DashboardWrapper: React.FC = () => {
 
 
   const calculateMetrics = useCallback((data: any[]) => {
-    let tp = 0, tg = 0, te = 0, trm = 0, crm = 0, ts = 0, tpr = 0, cpr = 0, tml = 0, cml = 0;
+    let tp = 0, tg = 0, te = 0, trm = 0, crm = 0, ts = 0, tpr = 0, cpr = 0, tml = 0, cml = 0, tcut = 0;
+    const cutDetails: Array<{ name: string, date: string }> = [];
 
     data.forEach(row => {
       // Busca produção com nomes variados (Prioridade para Qtde REAL)
       const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'producao_planejada', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true);
+      const originalProd = getColumnValue(row, ['_original_prod'], true);
+
       tp += prod;
+
+      if (originalProd > prod) {
+        const cutVol = originalProd - prod;
+        tcut += cutVol;
+
+        let desc = getColumnValue(row, ['Descrição', 'Descricao', 'Material'], false) || getColumnValue(row, ['Bitolas', 'Bitola', 'Dimensão'], false) || getColumnValue(row, ['sap', 'SAP'], false) || 'Item Desconhecido';
+
+        // Como 'termino_final' pode vir como serial do Excel em vez de string ISO, vamos calcular o fim do mês com base em 'corteDate' para garantir.
+        let dateStr = 'Fim do Mês';
+
+        if (typeof corteDate === 'string' && corteDate.includes('-')) {
+          const [year, month] = corteDate.split('-');
+          const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+          dateStr = `${String(lastDay).padStart(2, '0')}/${month}/${year.slice(-2)} às 23:59`;
+        }
+
+        cutDetails.push({ name: String(desc).trim(), date: dateStr });
+      }
 
       // Busca setup
       const setup = getColumnValue(row, ['_ai_setup', 'Setup', 'Tempo Setup', 'Minutos Setup'], true);
@@ -811,6 +861,8 @@ const DashboardWrapper: React.FC = () => {
 
     return {
       totalProducao: Math.round(tp),
+      totalTrimmed: tcut,
+      cutDetails,
       avgGas: avgGas,
       avgEE: tp > 0 ? te / tp : 0,
       avgRM: crm > 0 ? (trm / crm) : 0, // Removido * 100 pois o dado já vem em % (ex: 96.5) ou precisa ser ajustado na exibição
@@ -871,6 +923,10 @@ const DashboardWrapper: React.FC = () => {
       const sap = getColumnValue(row, ['_ai_sap', 'Código SAP', 'Código SAP2', 'SAP', 'Codigo SAP2'], false);
       const massaLinear = getColumnValue(row, ['_ai_massa_linear', 'Massa Linear'], true);
 
+      const setup = getColumnValue(row, ['_ai_setup', 'Setup', 'Tempo Setup', 'Minutos Setup'], true);
+      const tsHours = setup / 60;
+      const setupGasPenalty = tsHours * 800; // 800m3/h penalty during setup 
+
       let meta = null;
       if (sap) {
         const sapStr = String(sap).trim();
@@ -885,13 +941,18 @@ const DashboardWrapper: React.FC = () => {
         }
       }
 
+      // Calculate dynamic gas per day (Base theoretical + Setup Penalty)
+      const baseGasTotal = meta ? prod * cleanNumber(meta.gas || meta['Gás Natural (m³)'] || 0) : 0;
+      const finalGasTotal = baseGasTotal + setupGasPenalty;
+      const finalGasEspecifico = prod > 0 ? (finalGasTotal / prod) : 0;
+
       return {
         data: dataStr ? String(dataStr) : '',
         producao: prod,
-        gas: meta ? prod * cleanNumber(meta.gas || meta['Gás Natural (m³)'] || 0) : 0,
+        gas: finalGasTotal,
         energia: meta ? prod * cleanNumber(meta.energia || meta['Energia Elétrica (kWh)'] || 0) : 0,
-        gasEspecifico: meta ? cleanNumber(meta.gas || meta['Gás Natural (m³)'] || 0) : 0,
-        energiaEspecifica: meta ? cleanNumber(meta.energia || meta['Energia Elétrica (kWh)'] || 0) : 0,
+        gasEspecifico: finalGasEspecifico, // Uses dynamic consumption based on setup 
+        energiaEspecifica: meta ? cleanNumber(meta.energia || meta['Energia Elétrica (kWh)'] || 0) : 0, // Energy remains theoretical for now as requested
         massaLinear: massaLinear
       };
     });
@@ -1148,15 +1209,15 @@ const DashboardWrapper: React.FC = () => {
                 // Excel Serial = (UnixTimestamp / 86400000) + 25569
                 const endOfMonthSerial = (monthEnd.getTime() / 86400000) + 25569;
 
-                // --- Lógica de preenchimento (Gap Filling): Proporcional ---
+                // --- Lógica de preenchimento (Gap Filling) e Corte (Trimming): Proporcional ---
                 const originalEndSerial = lastRow[terminoCol];
                 const originalStartSerial = lastRow[inicioCol];
 
-                if (typeof originalEndSerial === 'number' && typeof originalStartSerial === 'number' && endOfMonthSerial > originalEndSerial) {
+                if (typeof originalEndSerial === 'number' && typeof originalStartSerial === 'number' && endOfMonthSerial !== originalEndSerial) {
                   const originalDuration = originalEndSerial - originalStartSerial;
                   const newDuration = endOfMonthSerial - originalStartSerial;
 
-                  if (originalDuration > 0 && newDuration > originalDuration) {
+                  if (originalDuration > 0 && newDuration > 0) {
                     const ratio = newDuration / originalDuration;
 
                     // Encontra a coluna de Produção original
@@ -1167,20 +1228,31 @@ const DashboardWrapper: React.FC = () => {
 
                     if (prodCol) {
                       const currentProd = cleanNumber(lastRow[prodCol]);
-                      const newProd = currentProd * ratio;
+
+                      // TRAVA DE SEGURANÇA: Limitar o ajuste (extensão max 5x, sem limite inferior para corte)
+                      const maxRatio = currentProd < 1 ? 100 : 5;
+                      const appliedRatio = Math.min(ratio, maxRatio);
+
+                      const newProd = currentProd * appliedRatio;
 
                       const op = lastRow['OP'] || lastRow['Ordem'] || "N/A";
+                      const action = appliedRatio > 1 ? "Estendendo" : "Aparando";
                       const debugInfo = ` | Ajuste Gap: OP ${op} (${(originalDuration * 24).toFixed(2)}h->${(newDuration * 24).toFixed(2)}h). Prod: ${currentProd.toFixed(1)}->${newProd.toFixed(1)}`;
                       (window as any).__GAP_DEBUG = debugInfo;
 
-                      console.log(`Gap detectado. Estendendo ordem de ${(originalDuration * 24).toFixed(2)}h para ${(newDuration * 24).toFixed(2)}h.`);
-                      console.log(`Produção ajustada de ${currentProd.toFixed(2)} para ${newProd.toFixed(2)} (Fator: ${ratio.toFixed(4)})`);
+                      console.log(`${action} última ordem de ${(originalDuration * 24).toFixed(2)}h para ${(newDuration * 24).toFixed(2)}h.`);
+                      console.log(`Produção ajustada de ${currentProd.toFixed(1)} para ${newProd.toFixed(1)} (Fator: ${ratio.toFixed(4)}, Aplicado: ${appliedRatio.toFixed(4)})`);
+
+                      // Armazenar os valores originais para exibição no frontend (dashboard)
+                      lastRow['_original_prod'] = currentProd;
+                      lastRow['_original_end_serial'] = originalEndSerial;
+                      lastRow['_trim_ratio'] = appliedRatio;
 
                       lastRow[prodCol] = newProd;
                     }
                   }
-                } else {
-                  console.warn("Gap Filling ignorado: Data de fim original inválida ou já posterior ao fim do mês.");
+                } else if (typeof originalEndSerial !== 'number' || typeof originalStartSerial !== 'number') {
+                  console.warn("Ajuste ignorado: Data de início ou fim original inválida.");
                 }
 
                 // Atualiza a coluna de término e término final
@@ -1223,6 +1295,12 @@ const DashboardWrapper: React.FC = () => {
                 inicio: getRowDateStr(getColumnValue(row, ['_ai_data', 'Início', 'Inicio', 'Data', 'Data Início'], false)),
                 producao_planejada: getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true),
                 setup: getColumnValue(row, ['_ai_setup', 'Setup'], true),
+
+                // --- Metadados e Ajustes Especiais ---
+                _original_prod: row['_original_prod'] || null,
+                _original_end_date: row['_original_end_serial'] ? excelSerialToDate(row['_original_end_serial']).toISOString().split('T')[0] : null,
+                _trim_ratio: row['_trim_ratio'] || null,
+
                 data_sincronizacao: new Date().toISOString()
               }));
 
@@ -1453,12 +1531,36 @@ const DashboardWrapper: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-50">
               <div className="p-8"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Mês de Referência</span><div className="flex items-center gap-2"><Calendar size={18} className="text-blue-500" /><span className="text-lg font-black text-slate-800">{referenceMonth}</span></div></div>
               <div className="p-8"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Sincronização</span><div className="flex items-center gap-2"><Database size={18} className="text-emerald-500" /><span className="text-lg font-black text-slate-800">{supabaseStatus === 'online' ? 'Conectado' : 'Offline'}</span></div></div>
-              <div className="p-8"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Fonte de Dados</span><div className="flex items-center gap-2"><FileText size={18} className="text-amber-500" /><span className="text-sm font-bold text-slate-800 truncate">{fileName || "Nenhum arquivo"}</span></div></div>
+              <div className="p-8">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Fonte de Dados</span>
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-amber-500" />
+                  <span className="text-sm font-bold text-slate-800 truncate flex items-center gap-2">
+                    {fileName || "Automático"}
+                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider ${n8nStatus === 'online' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                      <div className={`w-1.5 h-1.5 flex-shrink-0 rounded-full ${n8nStatus === 'online' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                      N8N {n8nStatus === 'online' ? 'ATIVO' : 'OFFLINE'}
+                    </div>
+                  </span>
+                </div>
+              </div>
               <div className="p-8"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Volume de Dados</span><div className="flex items-center gap-2"><Activity size={18} className="text-purple-500" /><span className="text-lg font-black text-slate-800">{pcpData.length} Registros</span></div></div>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6">
-            <MetricCard title="Produção Total" value={calculatedTotals.totalProducao.toLocaleString()} unit="t" icon={<Boxes className="text-blue-600" />} color="bg-blue-600" />
+            <MetricCard
+              title="Produção Total"
+              value={calculatedTotals.totalProducao.toLocaleString()}
+              unit="t"
+              icon={<Boxes className="text-blue-600" />}
+              color="bg-blue-600"
+              indicator={calculatedTotals.totalTrimmed > 0 ? {
+                label: "Volume Aparado (Mês)",
+                value: `-${calculatedTotals.totalTrimmed.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}t`,
+                color: "text-rose-500",
+                details: calculatedTotals.cutDetails
+              } : undefined}
+            />
             <MetricCard title="Consumo Gás (Plan)" value={calculatedTotals.avgGas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="m³/t" icon={<Flame className="text-orange-600" />} color="bg-orange-600" />
             <MetricCard title="Consumo Energia (Plan)" value={calculatedTotals.avgEE.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="kWh/t" icon={<Zap className="text-yellow-600" />} color="bg-yellow-600" />
             <MetricCard title="Rendimento Med." value={calculatedTotals.avgRM.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="%" icon={<Percent className="text-emerald-600" />} color="bg-emerald-600" />

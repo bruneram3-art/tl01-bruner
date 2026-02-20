@@ -435,11 +435,39 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
         }
 
         if (isDateColumn(colName)) {
-            // Se for número (Serial Excel)
+            // Verificação especial do _trim para a coluna de Término
+            if ((colName.toLowerCase() === 'término' || colName.toLowerCase() === 'termino') && row['_original_end_date']) {
+                let displayedValue = '';
+                if (typeof value === 'number' && value > 1000 && value < 100000) {
+                    displayedValue = excelSerialToDate(value);
+                } else if (typeof value === 'string' && (value.includes('T') || value.includes('-'))) {
+                    const d = new Date(value);
+                    if (!isNaN(d.getTime())) {
+                        displayedValue = d.toLocaleString('pt-BR', {
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                        });
+                    }
+                } else {
+                    displayedValue = String(value);
+                }
+
+                // Exibe as duas datas - Aparamento Mês
+                return (
+                    <div className="flex flex-col gap-0.5" title={`Originalmente terminava em: ${row['_original_end_date'].split('T')[0].split('-').reverse().join('/')}`}>
+                        <span className="line-through text-slate-400 text-[9px]">{row['_original_end_date'].split('T')[0].split('-').reverse().join('/')} (Original)</span>
+                        <span className="text-blue-600 font-bold bg-blue-50 px-1 py-0.5 rounded cursor-help">
+                            {displayedValue}
+                        </span>
+                    </div>
+                );
+            }
+
+            // Se for número (Serial Excel) normal
             if (typeof value === 'number' && value > 1000 && value < 100000) {
                 return excelSerialToDate(value);
             }
-            // Se for string ISO
+            // Se for string ISO normal
             if (typeof value === 'string' && (value.includes('T') || value.includes('-'))) {
                 const d = new Date(value);
                 if (!isNaN(d.getTime())) {
@@ -457,8 +485,26 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
             return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
+        // --- Verificação especial do _trim para a coluna de Produção ---
+        const normalizeKeyForProd = (k: string) => String(k).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const isProdColumn = normalizeKeyForProd(colName) === 'qtde real (t)' || normalizeKeyForProd(colName) === 'prod. acab. (t)' || normalizeKeyForProd(colName) === 'prod acab (t)' || normalizeKeyForProd(colName) === 'producao planejada' || normalizeKeyForProd(colName) === 'produção';
+
         if (typeof value === 'number') {
-            return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const formattedVal = value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            if (isProdColumn && row['_original_prod'] && row['_original_prod'] !== value) {
+                const originalVal = row['_original_prod'].toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                return (
+                    <div className="flex flex-col gap-0.5" title={`Originalmente a ordem previa: ${originalVal}t`}>
+                        <span className="line-through text-slate-400 text-[9px]">{originalVal}t</span>
+                        <span className="text-blue-600 font-bold bg-blue-50 px-1 py-0.5 rounded cursor-help">
+                            {formattedVal}
+                        </span>
+                    </div>
+                );
+            }
+
+            return formattedVal;
         }
         return String(value);
     };

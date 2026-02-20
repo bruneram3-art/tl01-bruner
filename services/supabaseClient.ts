@@ -313,6 +313,7 @@ export const getPcpFromSupabase = async () => {
         produtividade, produtividade_nominal, iu, ie, setup, atrasos_ganhos, paradas_progr,
         aco, codigo_mp, descricao_mp, origem_tarugos, destino,
         carteira_m1, carteira_futura, cart_atraso_m0, prod_cart_total,
+        _original_prod, _original_end_date, _trim_ratio,
         revisao_arquivo, data_modificacao_arquivo, data_sincronizacao
       `)
       .order('inicio', { ascending: true });
@@ -358,7 +359,10 @@ export const getPcpFromSupabase = async () => {
       'Cart. M1': row.carteira_m1,
       'Cart. Futura': row.carteira_futura,
       'Cart. Atraso+ M0': row.cart_atraso_m0,
-      'Prod - Cart. Total': row.prod_cart_total
+      'Prod - Cart. Total': row.prod_cart_total,
+      '_original_prod': row._original_prod,
+      '_original_end_date': row._original_end_date,
+      '_trim_ratio': row._trim_ratio
     })) || [];
 
     return mappedData;

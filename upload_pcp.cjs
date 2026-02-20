@@ -293,11 +293,11 @@ async function uploadPCP() {
                     const currentTermino = excelSerialToDate(terminoSerial);
                     const produtividadePlan = parseFloat(lastRow['Produt. Plan t/h'] || '0');
 
-                    if (currentTermino && currentTermino < monthEnd) {
+                    if (currentTermino && currentTermino.getTime() !== monthEnd.getTime()) {
                         const originalDuration = (currentTermino.getTime() - excelSerialToDate(lastRow[inicioCol]).getTime());
                         const newDuration = (monthEnd.getTime() - excelSerialToDate(lastRow[inicioCol]).getTime());
 
-                        if (originalDuration > 0 && newDuration > originalDuration) {
+                        if (originalDuration > 0 && newDuration > 0) {
                             const ratio = newDuration / originalDuration;
 
                             const prodAtual = parseFloat(String(lastRow['Qtde REAL (t)'] || lastRow['Prod. Acab. (t)'] || '0')) || 0;
@@ -308,11 +308,19 @@ async function uploadPCP() {
 
                             const prodNova = prodAtual * appliedRatio;
 
-                            console.log(`\n   📐 Extensão da última ordem (Proporcional):`);
+                            const action = appliedRatio > 1 ? "Extensão" : "Corte (Trimming)";
+                            const paramSinal = appliedRatio > 1 ? "+" : "";
+
+                            console.log(`\n   📐 ${action} da última ordem (Proporcional):`);
                             console.log(`      ${lastRow['Descrição']} (${lastRow['Bitolas'] || lastRow['Bitola']})`);
                             console.log(`      Duração: ${(originalDuration / 3600000).toFixed(2)}h -> ${(newDuration / 3600000).toFixed(2)}h`);
                             console.log(`      Fator: ${ratio.toFixed(4)} (Aplicado: ${appliedRatio.toFixed(4)})`);
-                            console.log(`      Produção: ${prodAtual.toFixed(2)} -> ${prodNova.toFixed(2)} t (+${(prodNova - prodAtual).toFixed(2)}t)`);
+                            console.log(`      Produção: ${prodAtual.toFixed(2)} -> ${prodNova.toFixed(2)} t (${paramSinal}${(prodNova - prodAtual).toFixed(2)}t)`);
+
+                            // Armazenar os valores originais para exibição no frontend (dashboard)
+                            lastRow['_original_prod'] = prodAtual;
+                            lastRow['_original_end_serial'] = terminoSerial;
+                            lastRow['_trim_ratio'] = appliedRatio;
 
                             // Atualiza produção na linha raw
                             lastRow['Qtde REAL (t)'] = prodNova;
@@ -375,6 +383,11 @@ async function uploadPCP() {
             carteira_futura: getColumnValue(row, ['Cart. Futura'], true),
             cart_atraso_m0: getColumnValue(row, ['Cart. Atraso+ M0', 'Cart. Atraso+M0'], true),
             prod_cart_total: getColumnValue(row, ['Prod - Cart. Total'], true),
+
+            // --- Metadados e Ajustes Especiais ---
+            _original_prod: row['_original_prod'] || null,
+            _original_end_date: row['_original_end_serial'] ? excelSerialToDate(row['_original_end_serial']).toISOString().split('T')[0] : null,
+            _trim_ratio: row['_trim_ratio'] || null,
 
             // --- Metadados do Arquivo ---
             revisao_arquivo: metadata.revision,

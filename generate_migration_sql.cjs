@@ -28,7 +28,10 @@ async function addMissingColumns() {
         { name: 'carteira_futura', type: 'numeric' },
         { name: 'atrasos_ganhos', type: 'numeric' },
         { name: 'producao_apontada', type: 'numeric' },
-        { name: 'dia_semana', type: 'text' }
+        { name: 'dia_semana', type: 'text' },
+        { name: '_original_prod', type: 'numeric' },
+        { name: '_original_end_date', type: 'date' },
+        { name: '_trim_ratio', type: 'numeric' }
     ];
 
     for (const col of columnsToAdd) {
