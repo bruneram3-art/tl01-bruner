@@ -43,19 +43,23 @@ interface ForecastCardProps {
   producaoAcumulada: number;
   meta?: number;
   plannedValue?: number; // Valor Planejado (PCP) até a data
+  plannedProduction?: number; // Produção Planejada (PCP) até a data
+  futureProduction?: number; // Produção Futura Planejada
+  futureRM?: number; // Rendimento Médio Futuro Planejado
   price?: number;
   isYield?: boolean;
 }
 
 const ForecastCard: React.FC<ForecastCardProps> = ({
-  title, value, ritmo, unit, icon, colorClass, onValueChange, showSpecific, specUnit, producaoAcumulada, meta, plannedValue, price, isYield
+  title, value, ritmo, unit, icon, colorClass, onValueChange, showSpecific, specUnit, producaoAcumulada, meta, plannedValue, plannedProduction, futureProduction, futureRM, price, isYield
 }) => {
   const [localValue, setLocalValue] = useState(value.toString());
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
-    if (!isFocused && Math.round(parseFloat(localValue) || 0) !== Math.round(value)) {
-      setLocalValue(Math.round(value).toString());
+    const valNum = parseFloat(localValue.replace(/\./g, '').replace(',', '.')) || 0;
+    if (!isFocused && Math.abs(valNum - value) > 0.01) {
+      setLocalValue(value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }));
     }
   }, [value, isFocused]);
 
@@ -92,9 +96,29 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
 
   const currentNumValue = parseFloat(localValue.replace(/\./g, '').replace(',', '.')) || 0;
 
-  // Valor formatado para exibição (com pontos de milhar)
-  const displayValue = isFocused ? localValue : Math.round(currentNumValue).toLocaleString('pt-BR');
-  const specAcum = producaoAcumulada > 0 ? currentNumValue / producaoAcumulada : 0;
+  // Valor formatado para exibição
+  const displayValue = isFocused ? localValue : currentNumValue.toLocaleString('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: isYield ? 2 : 1
+  });
+  const specAcum = (producaoAcumulada > 0 && !isYield) ? currentNumValue / producaoAcumulada : 0;
+
+  // Box 2: Meta PCP (Esp.) - Usando a produção planejada do passado
+  const specMeta = (plannedProduction && plannedProduction > 0 && !isYield) ? (plannedValue || 0) / plannedProduction : (meta || 0);
+
+  // Box 3: Previsão Fechamento (Esp.)
+  const totalProdForecast = producaoAcumulada + (futureProduction || 0);
+  let specForecast = 0;
+
+  if (isYield) {
+    // Para Rendimento, fazemos a média ponderada entre o Real do passado e o Meta do futuro
+    specForecast = totalProdForecast > 0
+      ? (currentNumValue * producaoAcumulada + (futureRM || 0) * (futureProduction || 0)) / totalProdForecast
+      : (meta || 0);
+  } else {
+    // Para Consumos (Gás/Energia), somamos os volumes (Real + Futuro) e dividimos pela produção total
+    specForecast = totalProdForecast > 0 ? (currentNumValue + ritmo) / totalProdForecast : 0;
+  }
 
   // Cálculo de Desperdício Financeiro
   let wasteCost = 0;
@@ -142,10 +166,11 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-4 divide-x divide-slate-100">
-          <div className="space-y-1 px-1">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block truncate">Acumulado Real</span>
-            <div className="flex items-baseline gap-1 bg-slate-50 p-1.5 rounded-lg border border-transparent focus-within:border-blue-200 transition-all">
+        <div className="space-y-4 mb-6">
+          {/* Linha 1: Acumulado Real (Destaque total para o campo de input) */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Acumulado Real</span>
+            <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border-2 border-transparent focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
               <input
                 type="text"
                 inputMode="numeric"
@@ -154,56 +179,70 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
                 onBlur={commitChange}
                 onFocus={handleFocus}
                 onKeyDown={handleKeyDown}
-                className="w-full bg-transparent text-lg font-black text-slate-900 outline-none"
+                className="w-full bg-transparent text-3xl font-black text-slate-900 outline-none"
               />
-              <span className="text-[10px] font-bold text-slate-400 shrink-0">{unit}</span>
+              <span className="text-sm font-bold text-slate-400 bg-white px-2 py-1 rounded-lg shadow-sm shrink-0">{unit}</span>
             </div>
           </div>
 
-          <div className="space-y-1 px-3">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block truncate">Meta (PCP)</span>
-            <div className="flex items-baseline gap-1 py-1.5">
-              <span className={`text-xl font-black ${plannedValue && currentNumValue >= plannedValue ? 'text-emerald-500' : 'text-amber-500'}`}>
-                {plannedValue ? Math.round(plannedValue).toLocaleString() : '-'}
-              </span>
-              <span className="text-[10px] font-bold text-slate-300">{unit}</span>
+          {/* Linha 2: Meta e Previsão (Lado a lado com mais espaço) */}
+          <div className="grid grid-cols-2 gap-4 divide-x divide-slate-100">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Meta (PCP)</span>
+              <div className="flex items-baseline gap-1">
+                <span className={`text-2xl font-black ${plannedValue && currentNumValue >= plannedValue ? 'text-emerald-500' : 'text-amber-500'}`}>
+                  {plannedValue ? Math.round(plannedValue).toLocaleString() : '-'}
+                </span>
+                <span className="text-xs font-bold text-slate-300">{unit}</span>
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-1 pl-3">
-            <span className="text-[9px] font-bold text-blue-500 uppercase tracking-widest block truncate">Prev. Fechamento</span>
-            <div className="flex items-baseline gap-1 py-1.5">
-              <span className="text-xl font-black text-blue-600">
-                {isYield
-                  ? Math.round(ritmo).toLocaleString()
-                  : Math.round(currentNumValue + ritmo).toLocaleString()}
-              </span>
-              <span className="text-[10px] font-bold text-blue-300">{unit}</span>
+            <div className="space-y-1 pl-4">
+              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest block">Prev. Fechamento</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-blue-600">
+                  {isYield
+                    ? ritmo.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+                    : (currentNumValue + ritmo).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                </span>
+                <span className="text-xs font-bold text-blue-300">{unit}</span>
+              </div>
             </div>
           </div>
         </div>
 
         {(showSpecific || isYield) && (
-          <div className="mt-4 pt-4 border-t border-slate-50">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="mt-6 pt-6 border-t border-slate-50">
+            <div className="grid grid-cols-3 gap-2 px-1">
               <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase block">{isYield ? 'Real' : 'Consumo Esp. Real'}</span>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-black ${isWaste ? 'text-rose-500' : 'text-emerald-500'}`}>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block truncate">Real</span>
+                <div className="flex items-center gap-1">
+                  <span className={`text-lg font-black ${isWaste ? 'text-rose-500' : 'text-emerald-500'}`}>
                     {(isYield ? currentNumValue : specAcum).toFixed(2).replace('.', ',')}
                   </span>
-                  {(specUnit || unit) && <span className="text-[10px] font-bold text-slate-400">{specUnit || unit}</span>}
+                  <span className="text-[10px] font-bold text-slate-400">{specUnit || unit}</span>
                 </div>
               </div>
-              {meta !== undefined && meta > 0 && (
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase block">Meta Calculada</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-500">{meta.toFixed(2).replace('.', ',')}</span>
-                    <span className="text-[10px] font-bold text-slate-300">{specUnit || unit}</span>
-                  </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block truncate">Meta (PCP)</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-lg font-bold text-slate-500">
+                    {specMeta.toFixed(2).replace('.', ',')}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">{specUnit || unit}</span>
                 </div>
-              )}
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-blue-500 uppercase block truncate">Previsão</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-lg font-black text-blue-600">
+                    {specForecast.toFixed(2).replace('.', ',')}
+                  </span>
+                  <span className="text-[10px] font-bold text-blue-300">{specUnit || unit}</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -222,6 +261,7 @@ const DashboardWrapper: React.FC = () => {
   const [fileName, setFileName] = useState<string>("");
   const [currentView, setCurrentView] = useState<'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield'>('dashboard');
   const [manualAcum, setManualAcum] = useState({ producao: 0, gn: 0, ee: 0, rm: 0 });
+
   const [supabaseStatus, setSupabaseStatus] = useState<'online' | 'offline' | 'pending'>('pending');
 
   const [corteDate, setCorteDate] = useState(new Date().toISOString().split('T')[0]);
@@ -303,29 +343,43 @@ const DashboardWrapper: React.FC = () => {
     };
   }, []);
 
-  const cleanNumber = (val: any) => {
+  const cleanNumber = (val: any): number => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
-    let str = String(val).trim();
+    const str = String(val).trim();
+    if (!str) return 0;
 
-    // Detecção de formato US (1.234,56 ou 1234.56) vs BR (1.234,56)
-    // Se tem ponto e NÃO tem vírgula, e o ponto está no fim (ex: 100.50), é US.
-    // Se tem vírgula, assume BR (vírgula decimal).
-    if (str.includes('.') && !str.includes(',')) {
-      // Verifica se parece ano ou milhar (ex: 2024.0 ou 1.000)
-      // Se tiver apenas um ponto e ele separar 1 ou 2 digitos, é decimal US.
+    // Se tem vírgula, assume padrão BR (vírgula é decimal)
+    if (str.includes(',')) {
+      const cleaned = str.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(cleaned);
+      return isNaN(n) ? 0 : n;
+    }
+
+    // Se tem apenas ponto, decide se é decimal ou milhar
+    if (str.includes('.')) {
       const parts = str.split('.');
-      if (parts.length === 2 && (parts[1].length === 1 || parts[1].length === 2)) {
-        return parseFloat(str);
+      // Se tiver mais de um ponto, é certamente separador de milhar
+      if (parts.length > 2) {
+        return parseFloat(str.replace(/\./g, '')) || 0;
+      }
+      // Se tiver apenas um ponto e 3 dígitos depois (e nada antes que pareça decimal), 
+      // pode ser milhar ou decimal. Decisão: se o número total for pequeno (< 1000) e tiver ponto, 
+      // provavelmente é decimal (ex: 36.19). Se for grande e terminar em .000, provavelmente milhar.
+      // Em sistemas industriais, m³/t e % costumam ser decimais.
+      const lastPart = parts[1];
+      if (lastPart.length !== 3) {
+        // Decimal US (ex: 123.45 ou 123.4)
+        return parseFloat(str) || 0;
+      } else {
+        // Ambiguidade (ex: 1.234). Se for rendimento ou consumo, tratamos como milhar se > 100? 
+        // Melhor: se tiver ponto e apenas um, e não for .000, tratamos como decimal.
+        return parseFloat(str) || 0;
       }
     }
 
-    // Lógica padrão (BR)
-    str = str.replace(/[^\d,.-]/g, ''); // Remove chars estranhos
-    str = str.replace(/\./g, '');       // Remove pontos de milhar
-    str = str.replace(',', '.');        // Troca vírgula por ponto
-    const num = parseFloat(str);
-    return isNaN(num) ? 0 : num;
+    const res = parseFloat(str.replace(/[^\d.-]/g, ''));
+    return isNaN(res) ? 0 : res;
   };
 
   // REVERSÃO: Normalize simplificada para evitar problemas com caracteres especiais (pontos, parênteses)
@@ -362,10 +416,9 @@ const DashboardWrapper: React.FC = () => {
   }, []);
 
   // Função de recarregamento de dados
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback(async () => {
     // Garante que as colunas massa_linear e familia existam no banco
     ensureTableColumns();
-
     console.log("🔍 [SISTEMA] Iniciando busca de Metas...");
     getMetasFromSupabase()
       .then(metas => {
@@ -389,9 +442,8 @@ const DashboardWrapper: React.FC = () => {
         if (data && data.length > 0) {
           console.log(`✅ [SISTEMA] ${data.length} registros de PCP carregados.`);
 
-          // Mapeamento das colunas do Supabase (snake_case) para o Frontend (Excel Headers)
           const mappedData = data.map((row: any) => ({
-            ...row, // Mantém dados originais
+            ...row,
             'Código SAP2': row.sap,
             'OP': row.op,
             'Descrição': row.descricao,
@@ -402,48 +454,36 @@ const DashboardWrapper: React.FC = () => {
             'Descrição MP': row.descricao_mp,
             'Origem Tarugos': row.origem_tarugos,
             'Destino': row.destino,
-
             'Início': row.inicio,
             'Término': row.termino,
             'Dia da Semana': row.dia_semana,
-
             'Prod. Acab. (t)': row.producao_planejada,
             'Produção Apontada': row.producao_apontada,
             'Tarugos (t)': row.tarugos,
             'Peças': row.pecas,
             'Massa Linear': row.massa_linear,
-
             'Produtividade (t/h)': row.produtividade,
             'Produt. Nom t/h': row.produtividade_nominal,
             'IU (%)': row.iu,
             'IE (%)': row.ie,
             'Setup': row.setup,
             'Atrasos/ Ganhos': row.atrasos_ganhos,
-
             'Cart. M1': row.carteira_m1,
             'Cart. Futura': row.carteira_futura
           }));
 
           setPcpData(mappedData);
-          // Auto-detectar nome do arquivo e revisão dos dados do Supabase
+
           const firstRow = data[0];
           if (firstRow && firstRow.revisao_arquivo && !fileName) {
             let label = `Revisão ${firstRow.revisao_arquivo} (Supabase)`;
             if (firstRow.data_modificacao_arquivo) {
-              // Garante que a data seja interpretada como UTC se vier sem 'Z'
               let dateStr = firstRow.data_modificacao_arquivo;
-              if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
-                dateStr += 'Z';
-              }
-
+              if (!dateStr.endsWith('Z') && !dateStr.includes('+')) dateStr += 'Z';
               const fileDate = new Date(dateStr);
               if (!isNaN(fileDate.getTime())) {
                 const formattedDate = fileDate.toLocaleString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  timeZone: 'America/Sao_Paulo'
+                  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo'
                 });
                 label = `Revisão ${firstRow.revisao_arquivo} (${formattedDate})`;
               }
@@ -452,7 +492,50 @@ const DashboardWrapper: React.FC = () => {
           }
         }
       });
-  }, []);
+
+    // --- NOVO: Busca dados reais do Diário de Bordo ---
+    try {
+      const { data: realData, error: realError } = await supabase
+        .from('diario_bordo_real')
+        .select('*')
+        .order('data', { ascending: true });
+
+      if (realError) throw realError;
+
+      if (realData && realData.length > 0) {
+        console.log(`✅ [DIARIO] ${realData.length} registros reais carregados.`);
+
+        // Calcular somatório até a data de corte
+        const corteStr = new Date(corteDate).toISOString().split('T')[0];
+        const [year, month] = corteStr.split('-');
+        const monthStart = `${year}-${month}-01`;
+
+        let sumProd = 0;
+        let sumGas = 0;
+        let sumEE = 0;
+
+        realData.forEach(row => {
+          if (row.data >= monthStart && row.data <= corteStr) {
+            sumProd += parseFloat(row.producao_laminacao) || 0;
+            sumGas += parseFloat(row.consumo_gas_tl01) || 0;
+            sumEE += parseFloat(row.consumo_energia_total) || 0;
+          }
+        });
+
+        if (sumProd > 0 || sumGas > 0 || sumEE > 0) {
+          setManualAcum(prev => ({
+            ...prev,
+            producao: sumProd,
+            gn: sumGas,
+            ee: sumEE
+          }));
+          console.log(`📊 [DIARIO] Acumulado Real Atualizado: Prod=${sumProd}t, Gás=${sumGas}m³, EE=${sumEE}kWh`);
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ [DIARIO] Erro ao buscar dados reais do Diário de Bordo:", err);
+    }
+  }, [corteDate]);
 
   // Efeito inicial
   useEffect(() => {
@@ -462,17 +545,15 @@ const DashboardWrapper: React.FC = () => {
   // Efeito Realtime
   useEffect(() => {
     const channel = supabase
-      .channel('public:db_changes')
+      .channel('public:db_changes_main')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pcp_data' },
         (payload) => {
           console.log('Realtime PCP update:', payload);
           setLoading(true);
-          // Pequeno delay para garantir que o n8n terminou de processar
           setTimeout(() => {
             fetchData();
-            // Feedback visual simples via console ou toast customizado
             const toast = document.createElement('div');
             toast.className = 'fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-5 font-bold flex items-center gap-2';
             toast.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Dados atualizados em tempo real!';
@@ -490,12 +571,21 @@ const DashboardWrapper: React.FC = () => {
           setTimeout(fetchData, 1000);
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'diario_bordo_real' },
+        (payload) => {
+          console.log('Realtime Diário de Bordo update:', payload);
+          fetchData();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [fetchData]);
+
 
   const metasMap = useMemo(() => {
     const map: Record<string, any> = {};
@@ -620,25 +710,25 @@ const DashboardWrapper: React.FC = () => {
     let remainingGas = 0;
     let remainingEE = 0;
     let remainingSetup = 0;
+    let remainingRMTotal = 0;
+    let remainingRMCount = 0;
 
     // Passado (Planejado até o corte)
     let pastProd = 0;
     let pastGas = 0;
     let pastEE = 0;
+    let pastRMTotal = 0;
+    let pastRMCount = 0;
 
     pcpData.forEach(row => {
       const rawDate = getColumnValue(row, ['_ai_data', 'Início', 'Inicio', 'Data', 'Data Início'], false);
       const rowDateStr = getRowDateStr(rawDate);
-
-      // Se data inválida ou maior que corte -> Futuro
-      // Comparação de string YYYY-MM-DD funciona perfeitamente: "2026-02-10" > "2026-02-09"
       const isFuture = !rowDateStr || (rowDateStr > corteStr);
 
       const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true);
       const setup = getColumnValue(row, ['_ai_setup', 'Setup'], true);
       const sap = getColumnValue(row, ['_ai_sap', 'Código SAP', 'Código SAP2', 'SAP', 'Codigo SAP2'], false);
 
-      // Busca SAP genérica (mesmo método do calculateMetrics)
       let sapStr = sap ? String(sap).trim() : '';
       if (!sapStr) {
         const sapKey = Object.keys(row).find(k => normalize(k).includes('sap') || normalize(k).includes('codigo'));
@@ -649,17 +739,11 @@ const DashboardWrapper: React.FC = () => {
       const bitola = bitolaKey ? String(row[bitolaKey] || "").trim() : "";
 
       let meta = null;
-
-      // 1. Tenta pelo SAP exato
       if (sapStr) {
         meta = metasMap[sapStr] || metasMap[sapStr.replace(/^0+/, '')];
       }
-
-      // 2. Tenta pela Bitola (Exata ou Fuzzy)
       if (!meta && bitola) {
         meta = metasMap[bitola] || metasMap[bitola.replace(',', '.')];
-
-        // 3. Busca Fuzzy (contém)
         if (!meta) {
           const fuzzyKey = Object.keys(metasMap).find(k => k && (k.includes(bitola) || bitola.includes(k)));
           if (fuzzyKey) meta = metasMap[fuzzyKey];
@@ -668,24 +752,55 @@ const DashboardWrapper: React.FC = () => {
 
       const gas = meta ? prod * cleanNumber(meta.gas || meta['Gás Natural (m³)'] || 0) : 0;
       const energy = meta ? prod * cleanNumber(meta.energia || meta['Energia Elétrica (kWh)'] || 0) : 0;
+      const rm = meta ? getColumnValue(meta, ['rm', 'RM', 'Rendimento', 'Yield'], true) : 0;
 
       if (isFuture) {
         remainingProd += prod;
         remainingSetup += setup;
         remainingGas += gas;
         remainingEE += energy;
+        if (rm > 0) {
+          remainingRMTotal += rm;
+          remainingRMCount++;
+        }
       } else {
         pastProd += prod;
         pastGas += gas;
         pastEE += energy;
+        if (rm > 0) {
+          pastRMTotal += rm;
+          pastRMCount++;
+        }
       }
     });
 
     return {
-      producao: remainingProd, gas: remainingGas, energia: remainingEE, setup: remainingSetup,
-      metaProd: pastProd, metaGas: pastGas, metaEE: pastEE
+      producao: remainingProd,
+      gas: remainingGas,
+      energia: remainingEE,
+      setup: remainingSetup,
+      futureRM: remainingRMCount > 0 ? (remainingRMTotal / remainingRMCount) : 0,
+      metaProd: pastProd,
+      metaGas: pastGas,
+      metaEE: pastEE,
+      metaRM: pastRMCount > 0 ? (pastRMTotal / pastRMCount) : 0
     };
-  }, [corteDate, pcpData, manualAcum, metasMap, getColumnValue]);
+  }, [corteDate, pcpData, metasMap, getColumnValue]);
+
+  // Sincroniza o Acumulado Real com os dados do arquivo baseado na data de corte
+  // Sincroniza o Acumulado Real com os dados do arquivo baseado na data de corte
+  // APENAS se não houver dados já carregados do Diário de Bordo (ou se for a primeira carga)
+  useEffect(() => {
+    // Se o manualAcum ainda estiver zerado (estado inicial), sincroniza com o PCP
+    if (hybridForecast.metaProd > 0 && manualAcum.producao === 0) {
+      setManualAcum({
+        producao: hybridForecast.metaProd,
+        gn: hybridForecast.metaGas,
+        ee: hybridForecast.metaEE,
+        rm: hybridForecast.metaRM
+      });
+    }
+  }, [hybridForecast.metaProd, hybridForecast.metaGas, hybridForecast.metaEE, hybridForecast.metaRM]);
 
   const referenceMonth = useMemo(() => {
     if (!corteDate) return "Indeterminado";
@@ -700,23 +815,32 @@ const DashboardWrapper: React.FC = () => {
 
 
   const calculateMetrics = useCallback((data: any[]) => {
-    let tp = 0, tg = 0, te = 0, trm = 0, crm = 0, ts = 0, tpr = 0, cpr = 0, tml = 0, cml = 0, tcut = 0;
+    let tp = 0, tg = 0, te = 0, trm = 0, crm = 0, ts = 0, tpr = 0, cpr = 0, tml = 0, cml = 0, tcut = 0, textended = 0;
     const cutDetails: Array<{ name: string, date: string }> = [];
 
+    let lastOrder: any = null;
+
     data.forEach(row => {
-      // Busca produção com nomes variados (Prioridade para Qtde REAL)
+      // Busca produção com nomes variados
       const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'producao_planejada', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true);
       const originalProd = getColumnValue(row, ['_original_prod'], true);
 
+      // Usando o valor já processado/ajustado (prod), que reflete a extensão até o fim do mês ou aparamento.
       tp += prod;
 
-      if (originalProd > prod) {
-        const cutVol = originalProd - prod;
-        tcut += cutVol;
+      if (originalProd > 0 && originalProd !== prod) {
+        // Se houve aparamento (corte porque passou do mês)
+        if (originalProd > prod) {
+          const cutVol = originalProd - prod;
+          tcut += cutVol;
+        } else {
+          // Se houve extensão (falta no fim do mês, então aumenta)
+          const addedVol = prod - originalProd;
+          textended += addedVol;
+        }
 
+        // Armazena detalhes da última alteração
         let desc = getColumnValue(row, ['Descrição', 'Descricao', 'Material'], false) || getColumnValue(row, ['Bitolas', 'Bitola', 'Dimensão'], false) || getColumnValue(row, ['sap', 'SAP'], false) || 'Item Desconhecido';
-
-        // Como 'termino_final' pode vir como serial do Excel em vez de string ISO, vamos calcular o fim do mês com base em 'corteDate' para garantir.
         let dateStr = 'Fim do Mês';
 
         if (typeof corteDate === 'string' && corteDate.includes('-')) {
@@ -724,7 +848,6 @@ const DashboardWrapper: React.FC = () => {
           const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
           dateStr = `${String(lastDay).padStart(2, '0')}/${month}/${year.slice(-2)} às 23:59`;
         }
-
         cutDetails.push({ name: String(desc).trim(), date: dateStr });
       }
 
@@ -807,7 +930,40 @@ const DashboardWrapper: React.FC = () => {
         const rm = getColumnValue(meta, ['rm', 'RM', 'meta.rendimento', 'Rendimento', 'Yield'], true);
         if (rm > 0) { trm += rm; crm++; }
       }
+
+      // NOVO: Rastrear o último material da programação (o que está rodando/terminando por último)
+      const terminoStr = getColumnValue(row, ['Término', 'termino', 'Termino Final'], false);
+      if (terminoStr) {
+        let tTime = 0;
+        let tDateStr = 'Fim do Mês';
+
+        if (typeof terminoStr === 'number' && terminoStr > 40000) {
+          // local excel numeric serial
+          const utcDays = Math.floor(terminoStr) - 25569;
+          const dateInfo = new Date(utcDays * 86400 * 1000);
+          const fractionalDay = terminoStr - Math.floor(terminoStr);
+          const totalSeconds = Math.round(fractionalDay * 86400);
+          dateInfo.setUTCHours(Math.floor(totalSeconds / 3600), Math.floor((totalSeconds % 3600) / 60), totalSeconds % 60);
+          tTime = dateInfo.getTime();
+          tDateStr = dateInfo.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        } else {
+          // database ISO string
+          const tDate = new Date(terminoStr);
+          tTime = tDate.getTime();
+          tDateStr = tDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Preserva o item com o maior tempo de término no mês de referência
+        if (!isNaN(tTime) && (!lastOrder || tTime >= lastOrder.time)) {
+          lastOrder = {
+            desc: String(getColumnValue(row, ['Bitola', 'BITOLA', 'Bitolas', 'Dimensão', 'Dimensao'], false) || getColumnValue(row, ['Descrição', 'Descricao'], false) || 'Item sem nome').trim(),
+            time: tTime,
+            timeStr: tDateStr
+          };
+        }
+      }
     });
+
 
     // DEBUG: Log detalhado ao console para diagnosticar cálculos
     console.log('📊 DIAGNÓSTICO MÉTRICAS:', {
@@ -860,8 +1016,9 @@ const DashboardWrapper: React.FC = () => {
     const custoExtraGas = tp > 0 ? Math.max(0, (tg - (tp * avgGas)) * costs.gas) : 0;
 
     return {
-      totalProducao: Math.round(tp),
+      totalProducao: tp,
       totalTrimmed: tcut,
+      totalExtended: textended,
       cutDetails,
       avgGas: avgGas,
       avgEE: tp > 0 ? te / tp : 0,
@@ -879,6 +1036,7 @@ const DashboardWrapper: React.FC = () => {
       totalCustoGas: tp * avgGas * costs.gas,
       totalCustoEnergia: tp * (tp > 0 ? te / tp : 0) * costs.energy,
       setupGasPenalty,
+      lastOrder // Exportando o último pedido para o card
     };
   }, [metasMap, costs, getColumnValue]);
 
@@ -1069,6 +1227,7 @@ const DashboardWrapper: React.FC = () => {
 
           console.log("Cabeçalhos encontrados:", headers.filter(h => !h.startsWith('Col_')));
 
+
           // Função auxiliar para converter serial do Excel para Date
           const excelSerialToDate = (serial: number): Date => {
             const utcDays = Math.floor(serial) - 25569;
@@ -1152,11 +1311,7 @@ const DashboardWrapper: React.FC = () => {
             const monthEnd = new Date(Date.UTC(refYear, refMonth + 1, 0, 23, 59, 59));
 
             // Permite pegar ordens que começam no último dia do mês anterior (transição)
-            const toleranceStart = new Date(monthStart);
-            toleranceStart.setDate(toleranceStart.getDate() - 1);
-            toleranceStart.setUTCHours(23, 0, 0, 0); // Pega apenas ordens do final do dia anterior
-
-            console.log(`Filtrando mês ${refMonth + 1}/${refYear} com tolerância de início.`);
+            console.log(`Filtrando mês ${refMonth + 1}/${refYear}.`);
 
             // 1. Filtra os dados
             filteredByMonth = processed.filter((row: any) => {
@@ -1173,9 +1328,8 @@ const DashboardWrapper: React.FC = () => {
 
               const date = excelSerialToDate(inicioVal);
 
-              // Aceita se for dentro do mês OU se for a transição do mês anterior (> 23h do dia anterior)
+              // Aceita se for dentro do mês inteiro
               if (date >= monthStart && date <= monthEnd) return true;
-              if (date >= toleranceStart && date < monthStart) return true;
 
               return false;
             });
@@ -1229,19 +1383,18 @@ const DashboardWrapper: React.FC = () => {
                     if (prodCol) {
                       const currentProd = cleanNumber(lastRow[prodCol]);
 
-                      // TRAVA DE SEGURANÇA: Limitar o ajuste (extensão max 5x, sem limite inferior para corte)
-                      const maxRatio = currentProd < 1 ? 100 : 5;
-                      const appliedRatio = Math.min(ratio, maxRatio);
-
-                      const newProd = currentProd * appliedRatio;
+                      // Desativado a pedido do usuário: manter a Qtde REAL idêntica ao arquivo original
+                      // const newProd = currentProd * ratio;
+                      const appliedRatio = 1.0;
+                      const newProd = currentProd; // Mantém original
 
                       const op = lastRow['OP'] || lastRow['Ordem'] || "N/A";
-                      const action = appliedRatio > 1 ? "Estendendo" : "Aparando";
-                      const debugInfo = ` | Ajuste Gap: OP ${op} (${(originalDuration * 24).toFixed(2)}h->${(newDuration * 24).toFixed(2)}h). Prod: ${currentProd.toFixed(1)}->${newProd.toFixed(1)}`;
+                      const action = ratio > 1 ? "Estendendo" : "Aparando";
+                      const debugInfo = ` | Ajuste Desativado (Original: ${currentProd.toFixed(1)})`;
                       (window as any).__GAP_DEBUG = debugInfo;
 
                       console.log(`${action} última ordem de ${(originalDuration * 24).toFixed(2)}h para ${(newDuration * 24).toFixed(2)}h.`);
-                      console.log(`Produção ajustada de ${currentProd.toFixed(1)} para ${newProd.toFixed(1)} (Fator: ${ratio.toFixed(4)}, Aplicado: ${appliedRatio.toFixed(4)})`);
+                      console.log(`Produção mantida em ${currentProd.toFixed(1)} (Fator seria: ${ratio.toFixed(4)}, Aplicado: ${appliedRatio.toFixed(4)})`);
 
                       // Armazenar os valores originais para exibição no frontend (dashboard)
                       lastRow['_original_prod'] = currentProd;
@@ -1497,10 +1650,66 @@ const DashboardWrapper: React.FC = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            <ForecastCard title="Produção" value={manualAcum.producao} ritmo={hybridForecast.producao} plannedValue={hybridForecast.metaProd} onValueChange={(v) => setManualAcum(p => ({ ...p, producao: v }))} unit="t" icon={<Boxes size={20} />} colorClass="bg-blue-500 text-blue-500" producaoAcumulada={manualAcum.producao} />
-            <ForecastCard title="Gás Natural" value={manualAcum.gn} ritmo={hybridForecast.gas} plannedValue={hybridForecast.metaGas} onValueChange={(v) => setManualAcum(p => ({ ...p, gn: v }))} unit="m³" icon={<Flame size={20} />} colorClass="bg-orange-500 text-orange-500" showSpecific specUnit="m³/t" producaoAcumulada={manualAcum.producao} meta={calculatedTotals.metaMedGas} price={costs.gas} />
-            <ForecastCard title="Energia (EE)" value={manualAcum.ee} ritmo={hybridForecast.energia} plannedValue={hybridForecast.metaEE} onValueChange={(v) => setManualAcum(p => ({ ...p, ee: v }))} unit="kWh" icon={<Zap size={20} />} colorClass="bg-amber-500 text-amber-500" showSpecific specUnit="kWh/t" producaoAcumulada={manualAcum.producao} meta={calculatedTotals.metaMedEE} price={costs.energy} />
-            <ForecastCard title="Rendimento" value={manualAcum.rm} ritmo={manualAcum.rm} onValueChange={(v) => setManualAcum(p => ({ ...p, rm: v }))} unit="%" icon={<Percent size={20} />} colorClass="bg-emerald-500 text-emerald-500" producaoAcumulada={manualAcum.producao} meta={calculatedTotals.metaMedRM} price={costs.material} isYield />
+            <ForecastCard
+              title="Produção"
+              value={manualAcum.producao}
+              ritmo={hybridForecast.producao}
+              plannedValue={hybridForecast.metaProd}
+              onValueChange={(v) => setManualAcum(p => ({ ...p, producao: v }))}
+              unit="t"
+              icon={<Boxes size={20} />}
+              colorClass="bg-blue-500 text-blue-500"
+              producaoAcumulada={manualAcum.producao}
+            />
+            <ForecastCard
+              title="Gás Natural"
+              value={manualAcum.gn}
+              ritmo={hybridForecast.gas}
+              plannedValue={hybridForecast.metaGas}
+              plannedProduction={hybridForecast.metaProd}
+              futureProduction={hybridForecast.producao}
+              onValueChange={(v) => setManualAcum(p => ({ ...p, gn: v }))}
+              unit="m³"
+              icon={<Flame size={20} />}
+              colorClass="bg-orange-500 text-orange-500"
+              showSpecific specUnit="m³/t"
+              producaoAcumulada={manualAcum.producao}
+              meta={calculatedTotals.metaMedGas}
+              price={costs.gas}
+            />
+            <ForecastCard
+              title="Energia (EE)"
+              value={manualAcum.ee}
+              ritmo={hybridForecast.energia}
+              plannedValue={hybridForecast.metaEE}
+              plannedProduction={hybridForecast.metaProd}
+              futureProduction={hybridForecast.producao}
+              onValueChange={(v) => setManualAcum(p => ({ ...p, ee: v }))}
+              unit="kWh"
+              icon={<Zap size={20} />}
+              colorClass="bg-amber-500 text-amber-500"
+              showSpecific specUnit="kWh/t"
+              producaoAcumulada={manualAcum.producao}
+              meta={calculatedTotals.metaMedEE}
+              price={costs.energy}
+            />
+            <ForecastCard
+              title="Rendimento"
+              value={manualAcum.rm}
+              ritmo={manualAcum.rm} // Para Yield, o ritmo é exibido como a previsão final ponderada internamente
+              plannedValue={hybridForecast.metaRM}
+              plannedProduction={hybridForecast.metaProd}
+              futureProduction={hybridForecast.producao}
+              futureRM={hybridForecast.futureRM}
+              onValueChange={(v) => setManualAcum(p => ({ ...p, rm: v }))}
+              unit="%"
+              icon={<Percent size={20} />}
+              colorClass="bg-emerald-500 text-emerald-500"
+              producaoAcumulada={manualAcum.producao}
+              meta={calculatedTotals.metaMedRM}
+              price={costs.material}
+              isYield
+            />
           </div>
         </div>
       ) : currentView === 'simulator' ? (
@@ -1550,16 +1759,30 @@ const DashboardWrapper: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6">
             <MetricCard
               title="Produção Total"
-              value={calculatedTotals.totalProducao.toLocaleString()}
+              value={calculatedTotals.totalProducao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               unit="t"
               icon={<Boxes className="text-blue-600" />}
               color="bg-blue-600"
-              indicator={calculatedTotals.totalTrimmed > 0 ? {
+              indicator={calculatedTotals.lastOrder ? {
+                label: "Último Material",
+                value: `${calculatedTotals.lastOrder.desc} @ ${calculatedTotals.lastOrder.timeStr}`,
+                color: "text-blue-600",
+                details: calculatedTotals.totalTrimmed > 0
+                  ? [{ name: `Aparado do mês (-${Math.round(calculatedTotals.totalTrimmed)}t)`, date: calculatedTotals.cutDetails[0]?.date || 'Fim do Mês' }]
+                  : calculatedTotals.totalExtended > 0
+                    ? [{ name: `Preenchido no mês (+${Math.round(calculatedTotals.totalExtended)}t)`, date: calculatedTotals.cutDetails[0]?.date || 'Fim do Mês' }]
+                    : undefined
+              } : (calculatedTotals.totalTrimmed > 0 ? {
                 label: "Volume Aparado (Mês)",
                 value: `-${calculatedTotals.totalTrimmed.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}t`,
                 color: "text-rose-500",
                 details: calculatedTotals.cutDetails
-              } : undefined}
+              } : calculatedTotals.totalExtended > 0 ? {
+                label: "Volume Preenchido (Mês)",
+                value: `+${calculatedTotals.totalExtended.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}t`,
+                color: "text-emerald-500",
+                details: calculatedTotals.cutDetails
+              } : undefined)}
             />
             <MetricCard title="Consumo Gás (Plan)" value={calculatedTotals.avgGas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="m³/t" icon={<Flame className="text-orange-600" />} color="bg-orange-600" />
             <MetricCard title="Consumo Energia (Plan)" value={calculatedTotals.avgEE.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="kWh/t" icon={<Zap className="text-yellow-600" />} color="bg-yellow-600" />
@@ -1840,6 +2063,8 @@ const DashboardWrapper: React.FC = () => {
               energia: hybridForecast.metaEE,
               producao: hybridForecast.metaProd
             }}
+            manualAcum={manualAcum}
+            corteDate={corteDate}
           />
         </header>
       )}

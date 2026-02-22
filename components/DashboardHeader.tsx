@@ -43,6 +43,13 @@ interface Props {
     energia: number;
     producao: number;
   };
+  manualAcum?: {
+    rm: number;
+    gn: number;
+    ee: number;
+    producao: number;
+  };
+  corteDate?: string;
 }
 
 export const DashboardHeader: React.FC<Props> = ({
@@ -66,7 +73,9 @@ export const DashboardHeader: React.FC<Props> = ({
   currentMetrics,
   supabaseStatus,
   forecastMetrics,
-  goals
+  goals,
+  manualAcum,
+  corteDate
 }) => {
   const [showAudit, setShowAudit] = React.useState(false);
   const [showHelp, setShowHelp] = React.useState(false);
@@ -103,6 +112,9 @@ export const DashboardHeader: React.FC<Props> = ({
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-slate-900 text-sm rounded-full font-black shadow-lg">
                     <Sparkles size={14} fill="currentColor" />
                     PRO
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-400 text-white text-[10px] rounded-full font-black shadow-lg animate-pulse ml-2">
+                    ANTIGRAVITY ACTIVE 🚀
                   </span>
                 </h1>
                 <p className="text-white/80 text-sm font-semibold mt-1">
@@ -246,7 +258,14 @@ export const DashboardHeader: React.FC<Props> = ({
                     mod.generateSmartPDFReport({
                       currentMetrics,
                       forecastMetrics,
-                      goals
+                      goals,
+                      manualAcum: {
+                        producao: manualAcum?.producao || 0,
+                        rendimento: manualAcum?.rm || 0,
+                        gas: manualAcum?.gn || 0,
+                        energia: manualAcum?.ee || 0
+                      },
+                      corteDate
                     });
                   });
                 }}

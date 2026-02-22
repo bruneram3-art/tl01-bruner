@@ -19,7 +19,6 @@ export const getChannelPath = (
     switch (type) {
         case 'box':
         case 'flat':
-        case 'square': // Quadrado no canal geralmente é diamond, mas se for box pass flat:
             // Retângulo com raio nos cantos (fundo do canal)
             // Desenhando como um container aberto ou fechado? Vamos desenhar fechado para simplificar a visualização da área
             // M x,y ...

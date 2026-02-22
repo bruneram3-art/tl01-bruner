@@ -110,7 +110,7 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
           <div className="mt-3 pt-3 border-t-2 border-slate-100 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{indicator.label}</span>
-              <span className={`text-xs font-black whitespace-nowrap ${indicator.color || 'text-slate-600'}`}>
+              <span className={`text-[11px] font-black leading-tight ${indicator.color || 'text-slate-600'}`}>
                 {indicator.value}
               </span>
             </div>

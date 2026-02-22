@@ -1,6 +1,6 @@
 
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 
 /**
  * Gera um relatório PDF a partir de um elemento HTML.
@@ -40,7 +40,7 @@ export const generatePDFReport = async (elementId: string, title: string) => {
     const imgWidth = 297; // Largura A4 paisagem
     const pageHeight = 210; // Altura A4 paisagem
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    
+
     let heightLeft = imgHeight;
     let position = 0;
 

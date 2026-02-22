@@ -103,11 +103,7 @@ function excelSerialToDate(serial) {
 function excelSerialToISO(serial) {
     const date = excelSerialToDate(serial);
     if (!date) return null;
-    // Formato YYYY-MM-DD
-    const y = date.getUTCFullYear();
-    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(date.getUTCDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return date.toISOString();
 }
 
 function getColumnValue(row, keys, asNumber) {
@@ -244,9 +240,6 @@ async function uploadPCP() {
         if (refMonth >= 0 && refYear > 0 && inicioCol) {
             const monthStart = new Date(Date.UTC(refYear, refMonth, 1, 0, 0, 0));
             const monthEnd = new Date(Date.UTC(refYear, refMonth + 1, 0, 23, 59, 59));
-            const toleranceStart = new Date(monthStart);
-            toleranceStart.setDate(toleranceStart.getDate() - 1);
-            toleranceStart.setUTCHours(23, 0, 0, 0);
 
             filteredByMonth = processed.filter(row => {
                 const inicioVal = row[inicioCol];
@@ -258,8 +251,15 @@ async function uploadPCP() {
                     return isRelevant;
                 }
                 const date = excelSerialToDate(inicioVal);
-                if (date >= monthStart && date <= monthEnd) return true;
-                if (date >= toleranceStart && date < monthStart) return true;
+                const terminoColLocal = headers.find(h => h.toLowerCase().includes('término') || h.toLowerCase().includes('termino'));
+                const dTermino = terminoColLocal ? excelSerialToDate(row[terminoColLocal]) : null;
+
+                const lastMinute = new Date(Date.UTC(refYear, refMonth + 1, 0, 23, 45, 0));
+
+                const startsInMonth = date && date >= monthStart && date < lastMinute;
+                const overlapsStart = date && date < monthStart && dTermino && dTermino > monthStart;
+
+                if (startsInMonth || overlapsStart) return true;
                 return false;
             });
 
@@ -268,6 +268,33 @@ async function uploadPCP() {
                 const valB = typeof b[inicioCol] === 'number' ? b[inicioCol] : 0;
                 return valA - valB;
             });
+
+            // === PASSO 8A: Ajuste da primeira ordem (Trimming de Início) ===
+            // Se a primeira ordem começou no mês anterior, ajustamos o início e a produção
+            if (filteredByMonth.length > 0) {
+                const firstRow = filteredByMonth[0];
+                const dInicio = excelSerialToDate(firstRow[inicioCol]);
+                const terminoColLocal = headers.find(h => h.toLowerCase().includes('término') || h.toLowerCase().includes('termino'));
+                const dTermino = terminoColLocal ? excelSerialToDate(firstRow[terminoColLocal]) : null;
+
+                if (dInicio && dInicio < monthStart && dTermino && dTermino > monthStart) {
+                    const originalDuration = dTermino.getTime() - dInicio.getTime();
+                    const newDuration = dTermino.getTime() - monthStart.getTime();
+                    const ratio = newDuration / originalDuration;
+
+                    const prodAtual = parseFloat(String(firstRow['Qtde REAL (t)'] || firstRow['Prod. Acab. (t)'] || '0')) || 0;
+                    const prodNova = Math.round((prodAtual * ratio) * 100) / 100;
+
+                    console.log(`\n   📐 Ajuste da primeira ordem (Cruzamento de Mês):`);
+                    console.log(`      ${firstRow['Descrição']} | Início original: ${dInicio.toISOString()}`);
+                    console.log(`      Produção: ${prodAtual.toFixed(2)} -> ${prodNova.toFixed(2)} t (Apenas parte de ${refMonth + 1}/${refYear})`);
+
+                    firstRow['Qtde REAL (t)'] = prodNova;
+                    firstRow['Prod. Acab. (t)'] = prodNova;
+                    const monthStartSerial = (monthStart.getTime() / 86400000) + 25569;
+                    firstRow[inicioCol] = monthStartSerial;
+                }
+            }
 
             console.log(`   Linhas filtradas para ${refMonth + 1}/${refYear}: ${filteredByMonth.length}`);
 
@@ -302,20 +329,20 @@ async function uploadPCP() {
 
                             const prodAtual = parseFloat(String(lastRow['Qtde REAL (t)'] || lastRow['Prod. Acab. (t)'] || '0')) || 0;
 
-                            // TRAVA DE SEGURANÇA: Limitar o ajuste a no máximo 5x (evitar erros bizarros)
-                            const maxRatio = prodAtual < 1 ? 100 : 5;
-                            const appliedRatio = Math.min(ratio, maxRatio);
+                            // Ajuste proporcional: se a ordem ultrapassa o fim do mês (ratio < 1),
+                            // reduz a produção proporcionalmente. Se a ordem termina antes do fim
+                            // do mês (ratio > 1), estende proporcionalmente.
+                            const appliedRatio = ratio;
+                            const prodNova = Math.round((prodAtual * appliedRatio) * 100) / 100;
 
-                            const prodNova = prodAtual * appliedRatio;
+                            const action = ratio > 1 ? "Extensão" : "Corte (Trimming)";
+                            const diffProd = prodNova - prodAtual;
 
-                            const action = appliedRatio > 1 ? "Extensão" : "Corte (Trimming)";
-                            const paramSinal = appliedRatio > 1 ? "+" : "";
-
-                            console.log(`\n   📐 ${action} da última ordem (Proporcional):`);
+                            console.log(`\n   📐 ${action} automático da última ordem:`);
                             console.log(`      ${lastRow['Descrição']} (${lastRow['Bitolas'] || lastRow['Bitola']})`);
                             console.log(`      Duração: ${(originalDuration / 3600000).toFixed(2)}h -> ${(newDuration / 3600000).toFixed(2)}h`);
-                            console.log(`      Fator: ${ratio.toFixed(4)} (Aplicado: ${appliedRatio.toFixed(4)})`);
-                            console.log(`      Produção: ${prodAtual.toFixed(2)} -> ${prodNova.toFixed(2)} t (${paramSinal}${(prodNova - prodAtual).toFixed(2)}t)`);
+                            console.log(`      Fator: ${ratio.toFixed(4)}`);
+                            console.log(`      Produção: ${prodAtual.toFixed(2)} -> ${prodNova.toFixed(2)} t (${diffProd >= 0 ? '+' : ''}${diffProd.toFixed(2)} t)`);
 
                             // Armazenar os valores originais para exibição no frontend (dashboard)
                             lastRow['_original_prod'] = prodAtual;
@@ -404,17 +431,40 @@ async function uploadPCP() {
             console.log(`   Produção total calculada: ${totalProd.toFixed(1)} t`);
         }
 
+        // === PASSO 9.5: Deduplicar records ===
+        const uniqueSet = new Set();
+        const deduplicatedRecords = [];
+        let duplicateCount = 0;
+
+        for (const record of records) {
+            const compositeKey = `${record.sap}_${record.op}_${record.inicio}_${record.termino}`;
+            if (!uniqueSet.has(compositeKey)) {
+                uniqueSet.add(compositeKey);
+                deduplicatedRecords.push(record);
+            } else {
+                duplicateCount++;
+            }
+        }
+
+        console.log(`   Registros removidos como duplicata (unique_pcp_entry): ${duplicateCount}`);
+        const finalRecords = deduplicatedRecords;
+
         // === PASSO 10: Limpar e enviar ===
         console.log('🗑️  Limpando dados antigos...');
+        // O Supabase requer await no delete senão ele executa paralelo com o insert
         const { error: delError } = await supabase.from('pcp_data').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-        if (delError) console.error('   Erro ao limpar:', delError);
+        if (delError) {
+            console.error('   Erro ao limpar:', delError);
+        } else {
+            console.log('   Dados antigos limpos com sucesso.');
+        }
 
         const BATCH_SIZE = 100;
         let successCount = 0;
         let errorCount = 0;
 
-        for (let i = 0; i < records.length; i += BATCH_SIZE) {
-            const batch = records.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < finalRecords.length; i += BATCH_SIZE) {
+            const batch = finalRecords.slice(i, i + BATCH_SIZE);
             const { error } = await supabase.from('pcp_data').insert(batch);
 
             if (error) {

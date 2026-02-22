@@ -682,7 +682,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
             <div className="grid grid-cols-6 gap-4 mb-6">
                 <StatCard
                     title="PRODUÇÃO"
-                    value={Math.round(footerTotalsResult['Qtde REAL (t)'] || footerTotalsResult['Prod. Acab. (t)'] || totals.totalProducao).toLocaleString('pt-BR')}
+                    value={(footerTotalsResult['Qtde REAL (t)'] || footerTotalsResult['Prod. Acab. (t)'] || totals.totalProducao).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     unit="t"
                     icon={<Boxes size={20} className="text-blue-600" />}
                     color="bg-blue-500"
@@ -696,7 +696,7 @@ export const PcpDetailView: React.FC<PcpDetailViewProps> = ({ data, fileName, on
                 />
                 <StatCard
                     title="ENERGIA ELÉT."
-                    value={((footerTotalsResult['Meta Energia (kWh)'] || 0) / (footerTotalsResult['Qtde REAL (t)'] || 1)).toFixed(1)}
+                    value={((footerTotalsResult['Meta Energia (kWh)'] || 0) / (footerTotalsResult['Qtde REAL (t)'] || 1)).toFixed(2)}
                     unit="kWh/t"
                     icon={<Zap size={20} className="text-amber-500" />}
                     color="bg-amber-500"
