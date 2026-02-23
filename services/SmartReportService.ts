@@ -1,6 +1,7 @@
 
 import { jsPDF } from 'jspdf';
 import { getBudgetForDate } from './BudgetService';
+import { getKPIJustifications } from './supabaseClient';
 
 interface ReportData {
     currentMetrics: {
@@ -14,12 +15,18 @@ interface ReportData {
         gas: number;
         energia: number;
         producao: number;
+        futureRM?: number;
     };
     goals: {
         rendimento: number;
         gas: number;
         energia: number;
         producao: number;
+    };
+    costs?: {
+        gas: number;
+        energy: number;
+        material: number;
     };
     manualAcum: {
         rendimento: number;
@@ -30,15 +37,18 @@ interface ReportData {
     corteDate?: string;
 }
 
-export const generateSmartPDFReport = (data: ReportData) => {
+export const generateSmartPDFReport = async (data: ReportData) => {
     console.log("📄 [PDF] Iniciando geração do relatório...", data);
 
     try {
+        const monthRef = data.corteDate ? data.corteDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+        const justifications = await getKPIJustifications(monthRef);
+
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 20;
-        let cursorY = 25;
+        const margin = 3;
+        let cursorY = 15;
 
         // Função auxiliar para formatação segura
         const formatDecimal = (val: any) => {
@@ -207,8 +217,12 @@ export const generateSmartPDFReport = (data: ReportData) => {
                 }
 
                 // Converter Meta (PCP) para valor específico se for Gás ou Energia
-                if (data.goals.producao > 0) {
+                // Meta (PCP) para Gás ou Energia é fornecida como volume total no data.goals.gas/ee
+                // mas a tabela pede o valor específico (KPI).
+                if (data.manualAcum.producao > 0) {
                     displayPlanoCorteValue = m.goal / data.goals.producao;
+                } else {
+                    displayPlanoCorteValue = m.goal / 14157; // Fallback para produção média se acumulado for 0
                 }
 
                 const totalProduction = data.manualAcum.producao + data.forecastMetrics.producao;
@@ -248,9 +262,9 @@ export const generateSmartPDFReport = (data: ReportData) => {
         doc.text("2. Visão Executiva de Performance", margin, cursorY);
         cursorY += 10;
 
-        const cardWidth = (pageWidth - (margin * 2) - 15) / 4;
+        const cardSpacing = 4;
+        const cardWidth = (pageWidth - (margin * 2) - (cardSpacing * 3)) / 4;
         const cardHeight = 65;
-        const cardMargin = 5;
 
         const cardColors = {
             producao: [59, 130, 246], // Blue
@@ -276,6 +290,17 @@ export const generateSmartPDFReport = (data: ReportData) => {
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(COLORS.textMain[0], COLORS.textMain[1], COLORS.textMain[2]);
             doc.text(title.toUpperCase(), x + 5, y + 10);
+
+            // Adicionar Custo se disponível
+            if (dataObj.price && dataObj.mainValue > 0) {
+                doc.setFontSize(6);
+                doc.setTextColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
+                const costLabel = dataObj.isWaste ? "DESPERDÍCIO" : "CUSTO ACUM.";
+                const costVal = "R$ " + dataObj.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+                doc.text(costLabel, x + cardWidth - 5, y + 8, { align: 'right' });
+                doc.setFontSize(8);
+                doc.text(costVal, x + cardWidth - 5, y + 13, { align: 'right' });
+            }
 
             // Subtítulo "ACUMULADO REAL"
             doc.setFontSize(6);
@@ -310,20 +335,10 @@ export const generateSmartPDFReport = (data: ReportData) => {
 
             // Valores Meta/Prev - AJUSTE DE FONTE
             let finalGoal = dataObj.goalValue;
-            let goalUnitStr = "";
+            let goalUnitStr = dataObj.subUnit || "";
 
-            // Segurança: Se a meta vier como volume total (> 500) converter para específico
-            const upperTitle = title.toUpperCase();
-            if (upperTitle.includes('GÁS') || upperTitle.includes('ENERGIA') || upperTitle.includes('GAS')) {
-                if (finalGoal > 500) {
-                    const producaoTarget = dataObj.targetProd || 14157;
-                    finalGoal = finalGoal / producaoTarget;
-                }
-                goalUnitStr = upperTitle.includes('GÁS') || upperTitle.includes('GAS') ? " m³/t" : " kWh/t";
-            }
-
-            const goalStr = finalGoal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + goalUnitStr;
-            const forecastStr = dataObj.forecastValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const goalStr = finalGoal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: (dataObj.isYield ? 1 : 0) }) + goalUnitStr;
+            const forecastStr = dataObj.forecastValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: (dataObj.isYield ? 1 : 0) }) + goalUnitStr;
 
             let subFontSize = 8;
             if (goalStr.length > 8 || forecastStr.length > 8) subFontSize = 7;
@@ -348,7 +363,7 @@ export const generateSmartPDFReport = (data: ReportData) => {
 
                 doc.text("REAL", x + 5, y + 56);
                 doc.text("META", x + cardWidth / 2 - 5, y + 56);
-                doc.text("PREVISAL", x + cardWidth - 12, y + 56);
+                doc.text("PREVISÃO", x + cardWidth - 5, y + 56, { align: 'right' });
 
                 const rSpec = dataObj.realSpec.toFixed(2);
                 const gSpec = dataObj.goalSpec.toFixed(2);
@@ -362,7 +377,7 @@ export const generateSmartPDFReport = (data: ReportData) => {
                 doc.setTextColor(COLORS.textMain[0], COLORS.textMain[1], COLORS.textMain[2]);
                 doc.text(rSpec, x + 5, y + 61);
                 doc.text(gSpec, x + cardWidth / 2 - 5, y + 61);
-                doc.text(fSpec, x + cardWidth - 12, y + 61);
+                doc.text(fSpec, x + cardWidth - 5, y + 61, { align: 'right' });
             }
         };
 
@@ -379,39 +394,126 @@ export const generateSmartPDFReport = (data: ReportData) => {
             hasSpec: false
         });
 
+        const costs = data.costs || { gas: 2.10, energy: 0.45, material: 1500.00 };
+
         // Card Gás
         const gasRealSpec = data.manualAcum.producao > 0 ? data.manualAcum.gas / data.manualAcum.producao : 0;
         const gasForecastSpec = totalProdForecast > 0 ? (data.manualAcum.gas + data.forecastMetrics.gas) / totalProdForecast : 0;
-        drawCard(margin + cardWidth + 5, cursorY, "Gás Natural", cardColors.gas, {
-            mainValue: gasRealSpec, // Valor principal agora é o específico
-            unit: "m³/t",
+        const gasMetaSpec = data.goals.producao > 0 ? data.goals.gas / data.goals.producao : (data.goals.gas / 14157);
+
+        let gasWaste = 0;
+        let isGasWaste = false;
+        if (gasRealSpec > gasMetaSpec && data.manualAcum.producao > 0) {
+            isGasWaste = true;
+            gasWaste = (gasRealSpec - gasMetaSpec) * data.manualAcum.producao * costs.gas;
+        }
+
+        drawCard(margin + cardWidth + cardSpacing, cursorY, "Gás Natural", cardColors.gas, {
+            mainValue: data.manualAcum.gas,
+            unit: "m³",
             goalValue: data.goals.gas,
-            forecastValue: gasForecastSpec,
-            targetProd: data.goals.producao, // Adicionado para cálculo de segurança
-            hasSpec: false
+            forecastValue: data.manualAcum.gas + data.forecastMetrics.gas,
+            subUnit: " m³",
+            hasSpec: true,
+            realSpec: gasRealSpec,
+            goalSpec: gasMetaSpec,
+            forecastSpec: gasForecastSpec,
+            price: costs.gas,
+            cost: isGasWaste ? gasWaste : (data.manualAcum.gas * costs.gas),
+            isWaste: isGasWaste
         });
 
         // Card Energia
         const eeRealSpec = data.manualAcum.producao > 0 ? data.manualAcum.energia / data.manualAcum.producao : 0;
         const eeForecastSpec = totalProdForecast > 0 ? (data.manualAcum.energia + data.forecastMetrics.energia) / totalProdForecast : 0;
-        drawCard(margin + (cardWidth + 5) * 2, cursorY, "Energia (EE)", cardColors.energia, {
-            mainValue: eeRealSpec, // Valor principal agora é o específico
-            unit: "kWh/t",
+        const eeMetaSpec = data.goals.producao > 0 ? data.goals.energia / data.goals.producao : (data.goals.energia / 14157);
+
+        let eeWaste = 0;
+        let isEEWaste = false;
+        if (eeRealSpec > eeMetaSpec && data.manualAcum.producao > 0) {
+            isEEWaste = true;
+            eeWaste = (eeRealSpec - eeMetaSpec) * data.manualAcum.producao * costs.energy;
+        }
+
+        drawCard(margin + (cardWidth + cardSpacing) * 2, cursorY, "Energia (EE)", cardColors.energia, {
+            mainValue: data.manualAcum.energia,
+            unit: "kWh",
             goalValue: data.goals.energia,
-            forecastValue: eeForecastSpec,
-            targetProd: data.goals.producao, // Adicionado para cálculo de segurança
-            hasSpec: false
+            forecastValue: data.manualAcum.energia + data.forecastMetrics.energia,
+            subUnit: " kWh",
+            hasSpec: true,
+            realSpec: eeRealSpec,
+            goalSpec: eeMetaSpec,
+            forecastSpec: eeForecastSpec,
+            price: costs.energy,
+            cost: isEEWaste ? eeWaste : (data.manualAcum.energia * costs.energy),
+            isWaste: isEEWaste
         });
 
         // Card Rendimento
-        drawCard(margin + (cardWidth + 5) * 3, cursorY, "Rendimento", cardColors.rendimento, {
+        const rmForecast = totalProdForecast > 0
+            ? (data.manualAcum.rendimento * data.manualAcum.producao + (data.forecastMetrics.futureRM || data.goals.rendimento) * data.forecastMetrics.producao) / totalProdForecast
+            : data.goals.rendimento;
+
+        let rmWaste = 0;
+        let isRMWaste = false;
+        if (data.manualAcum.rendimento > 0 && data.manualAcum.rendimento < data.goals.rendimento && data.manualAcum.producao > 0) {
+            isRMWaste = true;
+            const cargaReal = data.manualAcum.producao / (data.manualAcum.rendimento / 100);
+            const cargaTeorica = data.manualAcum.producao / (data.goals.rendimento / 100);
+            rmWaste = (cargaReal - cargaTeorica) * costs.material;
+        }
+
+        drawCard(margin + (cardWidth + cardSpacing) * 3, cursorY, "Rendimento", cardColors.rendimento, {
             mainValue: data.manualAcum.rendimento,
             unit: "%",
             goalValue: data.goals.rendimento,
-            forecastValue: data.forecastMetrics.rendimento > 0 ? data.forecastMetrics.rendimento : data.manualAcum.rendimento,
-            hasSpec: false
+            forecastValue: rmForecast,
+            subUnit: " %",
+            isYield: true,
+            hasSpec: true,
+            realSpec: data.manualAcum.rendimento,
+            goalSpec: data.goals.rendimento,
+            forecastSpec: rmForecast,
+            price: costs.material,
+            cost: rmWaste > 0 ? rmWaste : 0,
+            isWaste: isRMWaste
         });
 
+        // --- SEÇÃO DE JUSTIFICATIVAS DE DESVIOS ---
+        if (justifications && justifications.length > 0) {
+            cursorY += cardHeight + 15;
+
+            // Título da Seção
+            doc.setFillColor(COLORS.bgGray[0], COLORS.bgGray[1], COLORS.bgGray[2]);
+            doc.rect(margin, cursorY, pageWidth - (margin * 2), 10, 'F');
+
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+            doc.text("OBSERVAÇÕES E JUSTIFICATIVAS DE DESVIOS", margin + 5, cursorY + 6.5);
+
+            cursorY += 12;
+
+            justifications.forEach((item: any) => {
+                const kpiLabel = item.kpi_type.toUpperCase();
+
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(COLORS.secondary[0], COLORS.secondary[1], COLORS.secondary[2]);
+                doc.text(`${kpiLabel}:`, margin + 5, cursorY);
+
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(COLORS.textMain[0], COLORS.textMain[1], COLORS.textMain[2]);
+
+                // Quebra de texto automática
+                const textLines = doc.splitTextToSize(item.justification, pageWidth - margin * 2 - 30);
+                doc.text(textLines, margin + 35, cursorY);
+
+                cursorY += (textLines.length * 5) + 3;
+            });
+        }
 
         // --- NOTA DE RODAPÉ E PÁGINA ---
         cursorY += cardHeight + 15;

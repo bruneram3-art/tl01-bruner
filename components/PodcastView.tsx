@@ -9,10 +9,21 @@ interface Podcast {
     date: string;
     host: string;
     category: string;
+    audioUrl?: string;
 }
 
 export const PodcastView: React.FC = () => {
     const [episodes, setEpisodes] = useState<Podcast[]>([
+        {
+            id: 0,
+            title: "⚡ Briefing Diário AI: Predictor PRO",
+            description: "Resumo operacional gerado automaticamente com os principais insights de produção, custos e eficiência das últimas 24 horas.",
+            duration: "01:30",
+            date: new Date().toLocaleDateString('pt-BR'),
+            host: "Gemini AI",
+            category: "Inteligência",
+            audioUrl: "/audio/daily_briefing.mp3"
+        },
         {
             id: 1,
             title: "Mercado do Aço & Tendências 2026",
@@ -20,7 +31,8 @@ export const PodcastView: React.FC = () => {
             duration: "12:40",
             date: "10/02/2026",
             host: "Ana Silva",
-            category: "Mercado"
+            category: "Mercado",
+            audioUrl: "/audio/explicacao_rendimento.m4a"
         },
         {
             id: 2,
@@ -29,7 +41,8 @@ export const PodcastView: React.FC = () => {
             duration: "08:15",
             date: "03/02/2026",
             host: "Carlos Mendes",
-            category: "Técnico"
+            category: "Técnico",
+            audioUrl: "/audio/explicacao_rendimento.m4a"
         },
         {
             id: 3,
@@ -38,7 +51,8 @@ export const PodcastView: React.FC = () => {
             duration: "15:30",
             date: "27/01/2026",
             host: "Ana Silva",
-            category: "Eficiência"
+            category: "Eficiência",
+            audioUrl: "/audio/explicacao_rendimento.m4a"
         },
         {
             id: 4,
@@ -47,7 +61,8 @@ export const PodcastView: React.FC = () => {
             duration: "18:00",
             date: "20/01/2026",
             host: "Roberto Costa",
-            category: "Manutenção"
+            category: "Manutenção",
+            audioUrl: "/audio/explicacao_rendimento.m4a"
         },
         {
             id: 5,
@@ -56,9 +71,55 @@ export const PodcastView: React.FC = () => {
             duration: "11:20",
             date: "13/01/2026",
             host: "Maria Oliveira",
-            category: "Gestão"
+            category: "Gestão",
+            audioUrl: "/audio/explicacao_rendimento.m4a"
         },
     ]);
+
+    const [activeEpisodeId, setActiveEpisodeId] = useState<number | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [audio] = useState(new Audio());
+    const [progress, setProgress] = useState(0);
+
+    const togglePlay = (podcast: Podcast) => {
+        if (activeEpisodeId === podcast.id) {
+            if (isPlaying) {
+                audio.pause();
+                setIsPlaying(false);
+            } else {
+                audio.play();
+                setIsPlaying(true);
+            }
+        } else {
+            // Se for um novo episódio
+            setActiveEpisodeId(podcast.id);
+            setIsPlaying(true);
+
+            // Usa a URL do podcast ou o padrão
+            audio.src = podcast.audioUrl || '/audio/explicacao_rendimento.m4a';
+            audio.play();
+        }
+    };
+
+    // Efeito para atualizar o progresso
+    React.useEffect(() => {
+        const updateProgress = () => {
+            if (audio.duration) {
+                setProgress((audio.currentTime / audio.duration) * 100);
+            }
+        };
+
+        audio.addEventListener('timeupdate', updateProgress);
+        audio.addEventListener('ended', () => {
+            setIsPlaying(false);
+            setProgress(0);
+        });
+
+        return () => {
+            audio.removeEventListener('timeupdate', updateProgress);
+            audio.pause();
+        };
+    }, [audio]);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentPodcast, setCurrentPodcast] = useState<Partial<Podcast>>({});
@@ -177,8 +238,18 @@ export const PodcastView: React.FC = () => {
                             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
                                 {/* Play Circle */}
                                 <div className="shrink-0">
-                                    <button className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center group-hover:bg-gradient-to-br group-hover:from-purple-500 group-hover:to-fuchsia-500 group-hover:text-white transition-all shadow-inner group-hover:shadow-purple-500/30">
-                                        <Play size={28} className="ml-1 fill-current" />
+                                    <button
+                                        onClick={() => togglePlay(ep)}
+                                        className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-inner ${activeEpisodeId === ep.id && isPlaying
+                                            ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-purple-500/30 scale-110'
+                                            : 'bg-slate-100 text-slate-400 group-hover:bg-gradient-to-br group-hover:from-purple-500 group-hover:to-fuchsia-500 group-hover:text-white group-hover:shadow-purple-500/30'
+                                            }`}
+                                    >
+                                        {activeEpisodeId === ep.id && isPlaying ? (
+                                            <Pause size={28} className="fill-current" />
+                                        ) : (
+                                            <Play size={28} className="ml-1 fill-current" />
+                                        )}
                                     </button>
                                 </div>
 
@@ -205,6 +276,18 @@ export const PodcastView: React.FC = () => {
                                         <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
                                             <Mic2 size={12} /> {ep.host}
                                         </span>
+
+                                        {activeEpisodeId === ep.id && (
+                                            <div className="flex-1 max-w-[150px] ml-4 flex items-center gap-3">
+                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-purple-500 rounded-full transition-all duration-300"
+                                                        style={{ width: `${progress}%` }}
+                                                    />
+                                                </div>
+                                                <Activity size={12} className="text-purple-500 animate-pulse" />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

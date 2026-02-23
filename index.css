@@ -1,4 +1,3 @@
-/* Import Google Fonts: Inter & Outfit */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;700;900&display=swap');
 
 @tailwind base;
@@ -6,65 +5,84 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-rgb: 255, 255, 255;
+    --card-foreground: #0f172a;
+    --border: #e2e8f0;
+    --primary: #3b82f6;
+    --secondary: #64748b;
+    --glass-opacity: 0.8;
+  }
+
+  .dark {
+    --background: #020617;
+    --foreground: #f8fafc;
+    --card: #1e293b;
+    --card-rgb: 30, 41, 59;
+    --card-foreground: #f8fafc;
+    --border: #1e293b;
+    --primary: #60a5fa;
+    --secondary: #94a3b8;
+    --glass-opacity: 0.6;
+  }
+
   html {
     font-family: 'Inter', sans-serif;
     overflow-y: scroll;
     overflow-x: auto;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: 'Outfit', sans-serif;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900;
-    background-image:
-      radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
-      radial-gradient(circle at 100% 0%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
-    background-attachment: fixed;
+    background-color: var(--background);
+    color: var(--foreground);
+    transition: background-color 0.4s ease, color 0.4s ease;
   }
 }
 
 @layer components {
-
-  /* Glassmorphism Utilities */
   .glass {
-    @apply bg-white/70 backdrop-blur-lg border border-white/50 shadow-xl shadow-slate-200/50;
+    @apply backdrop-blur-xl border transition-all duration-300;
+    background-color: rgba(var(--card-rgb), var(--glass-opacity));
+    border-color: var(--border);
   }
 
   .glass-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/60 shadow-lg shadow-slate-200/40 hover:shadow-slate-300/50 transition-all duration-300;
+    background-color: rgba(var(--card-rgb), 0.9);
+    @apply backdrop-blur-md border shadow-lg transition-all duration-500 hover:shadow-2xl hover:scale-[1.01] rounded-[2rem];
+    border-color: var(--border);
   }
 
   .glass-input {
-    @apply bg-slate-50/50 border border-slate-200 focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none rounded-xl;
+    background: var(--background);
+    @apply border focus:ring-4 focus:ring-blue-500/20 transition-all outline-none rounded-2xl px-4 py-2;
+    border-color: var(--border);
+    color: var(--foreground);
   }
 
-  /* Scrollbar visível e padrão */
+  .premium-gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-600 font-black;
+  }
+
+  /* Scrollbar */
   ::-webkit-scrollbar {
-    width: 14px;
-    height: 14px;
+    width: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    background: #e2e8f0;
-    border-radius: 7px;
+    background: var(--background);
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #94a3b8;
-    border-radius: 7px;
-    border: 2px solid #e2e8f0;
+    background: var(--border);
+    border-radius: 10px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
+    background: var(--secondary);
   }
 }
 
@@ -75,7 +93,7 @@
   }
 
   50% {
-    transform: translateY(-5px);
+    transform: translateY(-10px);
   }
 
   100% {

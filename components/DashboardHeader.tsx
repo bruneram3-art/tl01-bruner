@@ -1,10 +1,10 @@
 import React from 'react';
-import { Upload, Factory, Target, Activity, CloudUpload, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones, Monitor, FileText } from 'lucide-react';
+import { Upload, Factory, Target, Activity, Smartphone, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones, Monitor, FileText, ExternalLink } from 'lucide-react';
 import { AuditLogModal } from './AuditLogModal';
 import { HealthScorePanel } from './HealthScorePanel';
 import { HelpCenterModal } from './HelpCenterModal';
 import { generatePDFReport } from '../services/ReportService';
-import { SmartAlerts, AlertRule } from './SmartAlerts';
+import { SmartAlerts } from './SmartAlerts';
 
 interface Props {
   onFileUpload: (file: File, type: 'pcp' | 'metas') => void;
@@ -22,8 +22,6 @@ interface Props {
   onUploadSecondary?: (file: File) => void;
   hasSecondary?: boolean;
   onOpenComparator?: () => void;
-  alertRules?: AlertRule[];
-  onUpdateAlertRules?: (rules: AlertRule[]) => void;
   currentMetrics?: {
     rendimento: number;
     gas: number;
@@ -31,11 +29,17 @@ interface Props {
     producao: number;
   };
   supabaseStatus?: 'pending' | 'online' | 'offline';
+  costs?: {
+    gas: number;
+    energy: number;
+    material: number;
+  };
   forecastMetrics?: {
     rendimento: number;
     gas: number;
     energia: number;
     producao: number;
+    futureRM?: number;
   };
   goals?: {
     rendimento: number;
@@ -50,6 +54,7 @@ interface Props {
     producao: number;
   };
   corteDate?: string;
+  onInstallApp?: () => void;
 }
 
 export const DashboardHeader: React.FC<Props> = ({
@@ -68,14 +73,14 @@ export const DashboardHeader: React.FC<Props> = ({
   onUploadSecondary,
   hasSecondary,
   onOpenComparator,
-  alertRules,
-  onUpdateAlertRules,
   currentMetrics,
   supabaseStatus,
   forecastMetrics,
   goals,
   manualAcum,
-  corteDate
+  corteDate,
+  costs,
+  onInstallApp
 }) => {
   const [showAudit, setShowAudit] = React.useState(false);
   const [showHelp, setShowHelp] = React.useState(false);
@@ -125,21 +130,51 @@ export const DashboardHeader: React.FC<Props> = ({
 
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-3">
-              {/* Smart Alerts */}
-              {alertRules && onUpdateAlertRules && currentMetrics && (
-                <SmartAlerts
-                  rules={alertRules}
-                  onUpdateRules={onUpdateAlertRules}
-                  currentMetrics={currentMetrics}
-                  forecastMetrics={forecastMetrics}
-                  goals={goals}
-                />
-              )}
+              {/* Smart Alerts (Auto-Ref Based on Budget) */}
+              <SmartAlerts
+                currentMetrics={currentMetrics}
+                forecastMetrics={forecastMetrics}
+                goals={goals}
+                monthRef={corteDate ? corteDate.slice(0, 7) : undefined}
+              />
 
               {/* Health Score */}
               {healthScore !== undefined && (
                 <HealthScorePanel score={healthScore} issues={healthIssues || []} />
               )}
+
+              {/* Gemini Button */}
+              <button
+                onClick={() => (window as any).triggerGeminiAnalysis?.()}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-black rounded-xl transition-all shadow-xl hover:scale-110 active:scale-95 group relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                <Sparkles size={18} className="animate-pulse" />
+                <span>Insights Gemini</span>
+              </button>
+
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={() => document.documentElement.classList.toggle('dark')}
+                className="flex items-center justify-center w-10 h-10 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white rounded-full transition-all shadow-lg hover:rotate-45"
+                title="Alternar Modo Escuro"
+              >
+                <Zap size={20} />
+              </button>
+
+              {/* Install PWA Button */}
+              {onInstallApp && (
+                <button
+                  onClick={onInstallApp}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-sm font-black rounded-xl transition-all shadow-xl hover:scale-110 active:scale-95 animate-bounce-subtle"
+                  title="Instalar no Celular"
+                >
+                  <Smartphone size={18} />
+                  <span>Instalar App</span>
+                </button>
+              )}
+
+
 
               {/* Help Button */}
               <button
@@ -150,14 +185,7 @@ export const DashboardHeader: React.FC<Props> = ({
                 ?
               </button>
 
-              {/* Export PDF */}
-              <button
-                onClick={handleExportPDF}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white text-sm font-bold rounded-xl transition-all shadow-lg hover:scale-105"
-              >
-                <CloudUpload size={16} className="rotate-180" />
-                Exportar PDF
-              </button>
+
 
 
               {/* Comparator */}
@@ -188,7 +216,7 @@ export const DashboardHeader: React.FC<Props> = ({
               onClick={() => onToggleView('podcast')}
               badge="NEW"
             />
-            {/* Botão Simulador HRS */}
+            {/* Botão Simulador HRC */}
             <NavButton
               icon={<Monitor size={18} />}
               label="Simulador HRC"
@@ -242,6 +270,13 @@ export const DashboardHeader: React.FC<Props> = ({
               variant="outline"
             />
             <ActionButton
+              label="Acessar n8n"
+              icon={<ExternalLink size={16} />}
+              onClick={() => window.open('http://localhost:5678', '_blank')}
+              variant="outline"
+              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+            />
+            <ActionButton
               label="Histórico"
               icon={<History size={16} />}
               onClick={() => setShowAudit(true)}
@@ -265,12 +300,13 @@ export const DashboardHeader: React.FC<Props> = ({
                         gas: manualAcum?.gn || 0,
                         energia: manualAcum?.ee || 0
                       },
-                      corteDate
+                      corteDate,
+                      costs
                     });
                   });
                 }}
-                variant="secondary"
-                className="bg-indigo-500 hover:bg-indigo-600 text-white border-0"
+                variant="primary"
+                className="from-indigo-600 to-blue-600 shadow-indigo-200"
               />
             )}
 
@@ -284,7 +320,7 @@ export const DashboardHeader: React.FC<Props> = ({
             />
             <ActionButton
               label="Salvar no BD"
-              icon={<CloudUpload size={16} />}
+              icon={<Upload size={16} />}
               onClick={onSave}
               disabled={!hasForecast || loading}
               loading={loading}
@@ -343,7 +379,7 @@ const UploadButton = ({ label, icon, loaded, onChange, accept, variant = 'primar
   </label>
 );
 
-const ActionButton = ({ label, icon, onClick, disabled = false, loading = false, variant = 'outline' }: any) => (
+const ActionButton = ({ label, icon, onClick, disabled = false, loading = false, variant = 'outline', className = '' }: any) => (
   <button
     onClick={onClick}
     disabled={disabled}
@@ -352,7 +388,7 @@ const ActionButton = ({ label, icon, onClick, disabled = false, loading = false,
       : variant === 'success'
         ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg'
         : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-blue-400'
-      }`}
+      } ${className}`}
   >
     {loading ? (
       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

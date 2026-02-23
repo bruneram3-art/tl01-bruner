@@ -4,10 +4,11 @@ import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocat
 import {
   Flame, Zap, Boxes, Clock, Activity, CheckCircle,
   UploadCloud, Calendar, Database, FileText, Info,
-  BarChart4, Percent, PlayCircle, Weight, Timer, BarChart3
+  BarChart4, Percent, PlayCircle, Weight, Timer, BarChart3, HelpCircle, Target, Trophy, Sparkles
 } from 'lucide-react';
 import {
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Line, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Line, Legend,
+  ReferenceLine, ReferenceDot, Label
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import { DashboardHeader } from './components/DashboardHeader';
@@ -27,7 +28,32 @@ import { PcpDetailView } from './components/PcpDetailView';
 import { MetallicYieldSimulator } from './components/MetallicYieldSimulator';
 import { PodcastView } from './components/PodcastView';
 import { HRSSimulator } from './src/pages/HRSSimulator';
+import { getBudgetForDate } from './services/BudgetService';
 
+
+// --- Componente de Tooltip Elegante ---
+const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div
+      className="relative inline-flex items-center ml-1.5 align-middle select-none"
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      <div className={`p-1 rounded-full transition-all duration-300 ${isVisible ? 'bg-blue-500 text-white scale-110' : 'bg-slate-100 text-slate-400'}`}>
+        <HelpCircle className="w-2.5 h-2.5 cursor-help" />
+      </div>
+
+      {isVisible && (
+        <div className="absolute bottom-full right-0 mb-3 w-72 p-4 bg-slate-800 text-white text-[13px] font-medium leading-relaxed rounded-2xl z-[1000] shadow-[0_20px_50px_rgba(0,0,0,0.3)] pointer-events-none border border-slate-700 animate-in fade-in zoom-in-95 slide-in-from-bottom-2">
+          <div className="relative z-10 text-center break-words">{text}</div>
+          <div className="absolute top-full right-3 -mt-1 border-[6px] border-transparent border-t-slate-800" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 // --- Componente de Cartão de Previsão ---
 interface ForecastCardProps {
@@ -150,26 +176,40 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
   }
 
   return (
-    <div className="glass-card rounded-[2rem] overflow-hidden relative group">
-      <div className={`h-1.5 w-full ${colorClass} opacity-80`} />
+    <div className="glass-card rounded-[2rem] relative group z-10 hover:z-[999] transition-all duration-300">
+      <div className={`h-1.5 w-full ${colorClass} opacity-80 rounded-t-[2rem]`} />
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-xl ${colorClass} bg-opacity-10 text-current`}>{icon}</div>
             <h3 className="font-black text-slate-800 uppercase tracking-tighter text-lg">{title}</h3>
           </div>
-          {isWaste && wasteCost > 0 && (
-            <div className="px-3 py-1 bg-rose-50 border border-rose-100 rounded-lg text-right animate-pulse">
-              <span className="text-[10px] font-bold text-rose-500 uppercase block tracking-widest">Desperdício</span>
-              <span className="text-sm font-black text-rose-600">- R$ {wasteCost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</span>
-            </div>
-          )}
+          <div className="flex flex-col items-end gap-1">
+            {price && currentNumValue > 0 && (
+              <div className={`px-3 py-1.5 rounded-xl border ${isWaste && wasteCost > 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'} transition-all`}>
+                <span className={`text-[9px] font-black uppercase tracking-widest block ${isWaste && wasteCost > 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {isWaste && wasteCost > 0 ? 'Desperdício' : 'Custo Acumulado'}
+                </span>
+                <span className={`text-sm font-black ${isWaste && wasteCost > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
+                  {isWaste && wasteCost > 0 ? '- ' : ''}R$ {(isWaste && wasteCost > 0 ? wasteCost : (currentNumValue * price)).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+            )}
+            {!isWaste && price && (
+              <span className="text-[10px] font-bold text-slate-400 mr-2">
+                Total Proj: R$ {((currentNumValue + ritmo) * price).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 mb-6">
           {/* Linha 1: Acumulado Real (Destaque total para o campo de input) */}
           <div className="space-y-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Acumulado Real</span>
+            <div className="flex items-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Acumulado Real</span>
+              <InfoTooltip text="Volume total registrado do início do mês até a data de hoje." />
+            </div>
             <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border-2 border-transparent focus-within:border-blue-400 focus-within:bg-white transition-all shadow-sm">
               <input
                 type="text"
@@ -188,7 +228,10 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
           {/* Linha 2: Meta e Previsão (Lado a lado com mais espaço) */}
           <div className="grid grid-cols-2 gap-4 divide-x divide-slate-100">
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Meta (PCP)</span>
+              <div className="flex items-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Meta (PCP)</span>
+                <InfoTooltip text="Objetivo definido pelo PCP para o acumulado do mês." />
+              </div>
               <div className="flex items-baseline gap-1">
                 <span className={`text-2xl font-black ${plannedValue && currentNumValue >= plannedValue ? 'text-emerald-500' : 'text-amber-500'}`}>
                   {plannedValue ? Math.round(plannedValue).toLocaleString() : '-'}
@@ -198,7 +241,10 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
             </div>
 
             <div className="space-y-1 pl-4">
-              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest block">Prev. Fechamento</span>
+              <div className="flex items-center">
+                <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest block">Prev. Fechamento</span>
+                <InfoTooltip text="Estimativa do valor final do mês com base no ritmo e projeções." />
+              </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-2xl font-black text-blue-600">
                   {isYield
@@ -215,7 +261,10 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
           <div className="mt-6 pt-6 border-t border-slate-50">
             <div className="grid grid-cols-3 gap-2 px-1">
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase block truncate">Real</span>
+                <div className="flex items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block truncate">Real</span>
+                  <InfoTooltip text="Consumo ou rendimento real por tonelada produzida (Mês)." />
+                </div>
                 <div className="flex items-center gap-1">
                   <span className={`text-lg font-black ${isWaste ? 'text-rose-500' : 'text-emerald-500'}`}>
                     {(isYield ? currentNumValue : specAcum).toFixed(2).replace('.', ',')}
@@ -225,7 +274,10 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase block truncate">Meta (PCP)</span>
+                <div className="flex items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block truncate">Meta (PCP)</span>
+                  <InfoTooltip text="Objetivo de consumo específico ou rendimento definido pelo plano." />
+                </div>
                 <div className="flex items-center gap-1">
                   <span className="text-lg font-bold text-slate-500">
                     {specMeta.toFixed(2).replace('.', ',')}
@@ -235,7 +287,10 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-blue-500 uppercase block truncate">Previsão</span>
+                <div className="flex items-center">
+                  <span className="text-[10px] font-bold text-blue-500 uppercase block truncate">Previsão</span>
+                  <InfoTooltip text="Expectativa de fechamento do indicador específico ao fim do mês." />
+                </div>
                 <div className="flex items-center gap-1">
                   <span className="text-lg font-black text-blue-600">
                     {specForecast.toFixed(2).replace('.', ',')}
@@ -255,27 +310,30 @@ const ForecastCard: React.FC<ForecastCardProps> = ({
 const DashboardWrapper: React.FC = () => {
   const navigate = useNavigate(); // Hook de navegação
   const [pcpData, setPcpData] = useState<any[]>([]);
+  const [pcpSecondary, setPcpSecondary] = useState<any[]>([]);
+  const [diarioBordoData, setDiarioBordoData] = useState<any[]>([]);
   const [metaData, setMetaData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
+  const [metaFileName, setMetaFileName] = useState<string>("");
   const [currentView, setCurrentView] = useState<'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield'>('dashboard');
   const [manualAcum, setManualAcum] = useState({ producao: 0, gn: 0, ee: 0, rm: 0 });
 
   const [supabaseStatus, setSupabaseStatus] = useState<'online' | 'offline' | 'pending'>('pending');
 
-  const [corteDate, setCorteDate] = useState(new Date().toISOString().split('T')[0]);
+  const getLocalDate = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const [corteDate, setCorteDate] = useState(getLocalDate());
+  const [lastRealDate, setLastRealDate] = useState<string>("");
+  const [utilidadesLastModified, setUtilidadesLastModified] = useState<string>("");
   const [missingSaps, setMissingSaps] = useState<string[]>([]);
   const [showCostConfig, setShowCostConfig] = useState(false);
   const [costs, setCosts] = useState({ gas: 2.10, energy: 0.45, material: 1500.00 });
-  const [pcpSecondary, setPcpSecondary] = useState<any[]>([]);
   const [showComparator, setShowComparator] = useState(false);
   const [n8nStatus, setN8nStatus] = useState<'online' | 'offline'>('offline');
-  const [alertRules, setAlertRules] = useState([
-    { id: '1', metric: 'rendimento', condition: 'less_than', value: 94, active: true },
-    { id: '2', metric: 'gas', condition: 'greater_than', value: 20, active: false },
-    { id: '3', metric: 'energia', condition: 'greater_than', value: 50, active: false },
-  ]);
 
   // N8N Health Check Ping
   useEffect(() => {
@@ -503,34 +561,76 @@ const DashboardWrapper: React.FC = () => {
       if (realError) throw realError;
 
       if (realData && realData.length > 0) {
-        console.log(`✅ [DIARIO] ${realData.length} registros reais carregados.`);
+        console.log(`✅ [DIARIO] ${realData.length} registros reais carregados para cálculo.`);
+        setDiarioBordoData(realData);
 
-        // Calcular somatório até a data de corte
+        const sorted = [...realData].sort((a, b) => b.data.localeCompare(a.data));
+        setLastRealDate(sorted[0].data);
+
+        const newestChange = [...realData].sort((a, b) =>
+          (b.data_modificacao_arquivo || b.created_at || b.data_sincronizacao || "").localeCompare(a.data_modificacao_arquivo || a.created_at || a.data_sincronizacao || "")
+        )[0];
+
+        if (newestChange && (newestChange.data_modificacao_arquivo || newestChange.created_at || newestChange.data_sincronizacao)) {
+          const syncDate = new Date(newestChange.data_modificacao_arquivo || newestChange.created_at || newestChange.data_sincronizacao);
+          setUtilidadesLastModified(syncDate.toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo'
+          }));
+        }
+
+        // Variáveis para acumulado
         const corteStr = new Date(corteDate).toISOString().split('T')[0];
-        const [year, month] = corteStr.split('-');
-        const monthStart = `${year}-${month}-01`;
-
+        const monthStart = `${corteStr.substring(0, 7)}-01`;
         let sumProd = 0;
-        let sumGas = 0;
+        let sumGasRaw = 0;
         let sumEE = 0;
+        let totalFatorPCS = 0;
+        let countFatorPCS = 0;
+        let totalPCSFallback = 0;
+        let countPCSFallback = 0;
 
         realData.forEach(row => {
           if (row.data >= monthStart && row.data <= corteStr) {
             sumProd += parseFloat(row.producao_laminacao) || 0;
-            sumGas += parseFloat(row.consumo_gas_tl01) || 0;
+            sumGasRaw += parseFloat(row.consumo_gas_tl01) || 0;
             sumEE += parseFloat(row.consumo_energia_total) || 0;
+
+            const fPCS = parseFloat(row.fator_pcs);
+            if (!isNaN(fPCS) && fPCS > 0) {
+              totalFatorPCS += fPCS;
+              countFatorPCS++;
+            }
+
+            const vPCS = parseFloat(row.pcs_gn) || 0;
+            if (vPCS > 0) {
+              totalPCSFallback += vPCS;
+              countPCSFallback++;
+            }
           }
         });
 
-        if (sumProd > 0 || sumGas > 0 || sumEE > 0) {
-          setManualAcum(prev => ({
-            ...prev,
-            producao: sumProd,
-            gn: sumGas,
-            ee: sumEE
-          }));
-          console.log(`📊 [DIARIO] Acumulado Real Atualizado: Prod=${sumProd}t, Gás=${sumGas}m³, EE=${sumEE}kWh`);
+        // Cálculo do Fator Final: Média da Coluna M (Fator PCS) ou fallback para PCS/9500
+        let fatorAplicado = 1;
+        if (countFatorPCS > 0) {
+          fatorAplicado = totalFatorPCS / countFatorPCS;
+        } else if (countPCSFallback > 0) {
+          fatorAplicado = (totalPCSFallback / countPCSFallback) / 9500;
         }
+
+        const sumGasCorrected = sumGasRaw * fatorAplicado;
+
+        console.log(`📊 [CÁLCULO] Fator Aplicado (Média Col M): ${fatorAplicado.toFixed(6)}, Gas Raw: ${sumGasRaw.toFixed(0)}, Gas Corrigido: ${sumGasCorrected.toFixed(0)}`);
+
+        setManualAcum(prev => {
+          const newState = {
+            producao: sumProd,
+            gn: sumGasCorrected,
+            ee: sumEE,
+            rm: prev.rm || 0
+          };
+          console.log(`📊 [STATE] Novo manualAcum:`, newState);
+          return newState;
+        });
       }
     } catch (err) {
       console.warn("⚠️ [DIARIO] Erro ao buscar dados reais do Diário de Bordo:", err);
@@ -628,6 +728,10 @@ const DashboardWrapper: React.FC = () => {
     console.log(`🗺️ [MAPA] Indexado ${Object.keys(map).length} chaves de busca para metas.`);
     return map;
   }, [metaData]);
+
+  const monthlyBudget = useMemo(() => {
+    return getBudgetForDate(corteDate);
+  }, [corteDate]);
 
   // --- Efeito para calcular produtos faltantes (Desacoplado do Upload) ---
   useEffect(() => {
@@ -787,12 +891,10 @@ const DashboardWrapper: React.FC = () => {
     };
   }, [corteDate, pcpData, metasMap, getColumnValue]);
 
-  // Sincroniza o Acumulado Real com os dados do arquivo baseado na data de corte
-  // Sincroniza o Acumulado Real com os dados do arquivo baseado na data de corte
-  // APENAS se não houver dados já carregados do Diário de Bordo (ou se for a primeira carga)
   useEffect(() => {
-    // Se o manualAcum ainda estiver zerado (estado inicial), sincroniza com o PCP
-    if (hybridForecast.metaProd > 0 && manualAcum.producao === 0) {
+    // Sincroniza com PCP apenas como fallback inicial se NÃO tivermos dados carregados do Diário de Bordo
+    // Se diarioBordoData tiver itens, o fetchData já cuidou de definir os valores reais (com PCS)
+    if (diarioBordoData.length === 0 && hybridForecast.metaProd > 0 && manualAcum.producao === 0) {
       setManualAcum({
         producao: hybridForecast.metaProd,
         gn: hybridForecast.metaGas,
@@ -800,7 +902,7 @@ const DashboardWrapper: React.FC = () => {
         rm: hybridForecast.metaRM
       });
     }
-  }, [hybridForecast.metaProd, hybridForecast.metaGas, hybridForecast.metaEE, hybridForecast.metaRM]);
+  }, [diarioBordoData.length, hybridForecast.metaProd, hybridForecast.metaGas, hybridForecast.metaEE, hybridForecast.metaRM]);
 
   const referenceMonth = useMemo(() => {
     if (!corteDate) return "Indeterminado";
@@ -1141,21 +1243,91 @@ const DashboardWrapper: React.FC = () => {
       groupedByDate[dateKey].count++;
     });
 
-    // Converte para array e calcula médias ponderadas
-    return Object.values(groupedByDate).map((item: any) => ({
-      data: item.data.split('/')[0], // Só o dia
-      producao: item.producao,
-      gas: item.gas,
-      energia: item.energia,
-      gasEspecifico: item.producao > 0 ? item.gasEspecificoSum / item.producao : 0,
-      energiaEspecifica: item.producao > 0 ? item.energiaEspecificaSum / item.producao : 0
-    })).sort((a, b) => {
-      // Ordena por data
-      const [diaA, mesA] = a.data.split('/').map(Number);
-      const [diaB, mesB] = b.data.split('/').map(Number);
-      return (mesA * 100 + diaA) - (mesB * 100 + diaB);
+    // Mesclar eventos do Diário de Bordo Real
+    diarioBordoData.forEach(row => {
+      const dbDate = new Date(row.data);
+      if (isNaN(dbDate.getTime())) return;
+
+      const day = String(dbDate.getUTCDate()).padStart(2, '0');
+      const month = String(dbDate.getUTCMonth() + 1).padStart(2, '0');
+      const year = dbDate.getUTCFullYear();
+      const dateKey = `${day}/${month}/${year}`;
+
+      if (groupedByDate[dateKey] && row.comentario) {
+        groupedByDate[dateKey].evento = row.comentario;
+      }
     });
-  }, [pcpData, metasMap, getColumnValue]);
+
+    // Converte para array e calcula médias ponderadas
+    return Object.values(groupedByDate).map((item: any) => {
+      const gasMetaDiaria = item.producao > 0 ? item.gasEspecificoSum / item.producao : 0;
+      const eeMetaDiaria = item.producao > 0 ? item.energiaEspecificaSum / item.producao : 0;
+
+      return {
+        data: item.data.split('/')[0], // Só o dia
+        producao: item.producao,
+        gas: item.gas,
+        energia: item.energia,
+        gasEspecifico: item.producao > 0 ? item.gas / item.producao : 0,
+        gasMeta: gasMetaDiaria,
+        energiaEspecifica: item.producao > 0 ? item.energia / item.producao : 0,
+        energiaMeta: eeMetaDiaria,
+        // Diferença para o gráfico de sombra
+        gasLoss: Math.max(0, (item.gas / item.producao) - gasMetaDiaria),
+        eeLoss: Math.max(0, (item.energia / item.producao) - eeMetaDiaria)
+      };
+    }).sort((a, b) => {
+      // Ordena por data (considerando apenas o dia para este gráfico mensal)
+      return parseInt(a.data) - parseInt(b.data);
+    });
+  }, [pcpData, diarioBordoData, metasMap, getColumnValue]);
+
+  // --- Lógica da IA Gemini Sob Demanda ---
+  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [aiReport, setAiReport] = useState<string | null>(null);
+
+  (window as any).triggerGeminiAnalysis = async () => {
+    if (isAnalysing) return;
+    setIsAnalysing(true);
+    setAiReport(null);
+    setCurrentView('dashboard'); // Garante que estamos no dashboard para ver o relatório
+
+    try {
+      // Coleta o contexto atual para a IA
+      const context = {
+        mes: referenceMonth,
+        producaoTotal: calculatedTotals.totalProducao,
+        gasMedio: calculatedTotals.avgGas,
+        gasMeta: calculatedTotals.metaMedGas,
+        eeMedio: calculatedTotals.avgEE,
+        eeMeta: calculatedTotals.metaMedEE,
+        rendimento: calculatedTotals.avgRM,
+        rendimentoMeta: calculatedTotals.metaMedRM,
+        desperdicioGas: calculatedTotals.custoExtraGas,
+        principaisSapsFaltantes: missingSaps.slice(0, 5)
+      };
+
+      // Chamada fictícia/simulada (você pode conectar ao seu webhook n8n real aqui)
+      // Exemplo: await fetch('SUA_URL_N8N', { method: 'POST', body: JSON.stringify(context) });
+
+      // Simulação de resposta inteligente para demonstração imediata
+      setTimeout(() => {
+        const report = `### 🧠 Análise Estratégica Gemini - ${referenceMonth}
+        
+* **Eficiência Térmica (Gás):** Identifiquei que o consumo de gás está **${context.gasMedio > context.gasMeta ? 'acima' : 'dentro'}** da meta. O impacto financeiro estimado de desvio é de **R$ ${context.desperdicioGas.toLocaleString()}**. Sugerimos auditar os setups de 800m³/h.
+* **Rendimento Metálico:** Sua média de **${context.rendimento.toFixed(2)}%** está alinhada com o mix de produtos.
+* **Gargalos:** Existem **${missingSaps.length}** produtos sem meta, o que pode mascarar ineficiências em lotes específicos.
+
+**Recomendação:** Focar na otimização térmica durante as primeiras 2 horas pós-setup.`;
+        setAiReport(report);
+        setIsAnalysing(false);
+      }, 2000);
+
+    } catch (error) {
+      console.error("Erro na análise Gemini:", error);
+      setIsAnalysing(false);
+    }
+  };
 
   const handleFileUpload = useCallback((file: File, type: 'pcp' | 'metas' | 'pcp_sec') => {
     const reader = new FileReader();
@@ -1474,6 +1646,7 @@ const DashboardWrapper: React.FC = () => {
           }
         } else {
           // Processamento e Upload de Metas para o Supabase
+          setMetaFileName(file.name);
           const rawMetas = XLSX.utils.sheet_to_json(worksheet);
           console.log("Metas raw carregadas:", rawMetas);
 
@@ -1554,6 +1727,59 @@ const DashboardWrapper: React.FC = () => {
     reader.readAsArrayBuffer(file);
   }, [metaData, navigate]);
 
+  // --- Lógica PWA: Instalação ---
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      console.log('✅ App pronto para instalação PWA');
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 70;
+    const isRightSwipe = distance < -70;
+
+    if (isLeftSwipe) {
+      // Avançar View
+      if (currentView === 'dashboard') handleToggleView('forecast');
+      else if (currentView === 'forecast') handleToggleView('simulator');
+    }
+    if (isRightSwipe) {
+      // Voltar View
+      if (currentView === 'simulator') handleToggleView('forecast');
+      else if (currentView === 'forecast') handleToggleView('dashboard');
+    }
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
+
   const handleDemo = () => {
     setFileName("DEMO_OPERACIONAL_2024.xlsx");
     setMetaData([{ sap: "SAP-001", gas: 15.5, energia: 42.0, rm: 0.96 }, { sap: "SAP-002", gas: 22.1, energia: 55.3, rm: 0.94 }]);
@@ -1620,17 +1846,57 @@ const DashboardWrapper: React.FC = () => {
     <>
       {successMsg && <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl flex items-center gap-3 mb-8 text-emerald-800 font-bold"><CheckCircle size={20} /> {successMsg}</div>}
 
+      {/* Painel de IA Gemini (Aparece sob demanda) */}
+      {(isAnalysing || aiReport) && (
+        <div className="bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-purple-600/10 border border-blue-200 backdrop-blur-xl p-8 rounded-[2.5rem] mb-10 animate-in zoom-in-95 duration-500 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4">
+            <button onClick={() => setAiReport(null)} className="text-secondary hover:text-foreground transition-colors">✕</button>
+          </div>
+
+          <div className="flex items-start gap-6 relative z-10">
+            <div className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl text-white shadow-lg animate-pulse">
+              <Sparkles size={28} />
+            </div>
+
+            <div className="flex-1 space-y-4">
+              <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                Análise Estratégica Gemini
+                {isAnalysing && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin ml-2" />}
+              </h3>
+
+              {isAnalysing ? (
+                <div className="space-y-2">
+                  <div className="h-4 bg-blue-200/50 rounded w-3/4 animate-pulse"></div>
+                  <div className="h-4 bg-blue-200/50 rounded w-1/2 animate-pulse"></div>
+                </div>
+              ) : (
+                <div className="prose prose-slate max-w-none text-slate-700 dark:text-slate-200 font-medium leading-relaxed">
+                  {aiReport?.split('\n').map((line, i) => (
+                    <p key={i} className={line.startsWith('#') ? 'text-lg font-black text-blue-700 mt-4' : ''}>
+                      {line.replace(/###|[*]/g, '')}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Decorative gradients */}
+          <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-blue-500/20 blur-[100px] rounded-full pointer-events-none"></div>
+        </div>
+      )}
+
       {currentView === 'forecast' ? (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="glass rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-8 animate-float">
             <div className="flex flex-wrap items-center gap-6">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Data de Referência (Corte)</label>
-                <input type="date" value={corteDate} onChange={(e) => setCorteDate(e.target.value)} className="glass-input px-6 py-3 font-black text-slate-800 focus:ring-4 focus:ring-blue-100/50 transition-all text-lg" />
+                <input type="date" value={corteDate} onChange={(e) => setCorteDate(e.target.value)} className="glass-input px-6 py-3 font-black text-foreground focus:ring-4 focus:ring-blue-100/50 transition-all text-lg" />
               </div>
-              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 max-w-xs">
-                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1 flex items-center gap-1"><Info size={12} /> Como funciona?</p>
-                <p className="text-xs text-blue-800 font-medium leading-relaxed">Insira o acumulado real até <b>{new Date(corteDate).toLocaleDateString()}</b>. O sistema somará o plano PCP do dia seguinte em diante.</p>
+              <div className="p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20 max-w-xs">
+                <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Info size={12} /> Como funciona?</p>
+                <p className="text-xs text-blue-800 dark:text-blue-200 font-medium leading-relaxed">Insira o acumulado real até <b>{new Date(corteDate).toLocaleDateString()}</b>. O sistema somará o plano PCP do dia seguinte em diante.</p>
               </div>
             </div>
             <div className="flex items-center gap-4 bg-slate-900 text-white p-6 rounded-2xl shadow-xl shadow-slate-200 min-w-[280px]">
@@ -1638,14 +1904,71 @@ const DashboardWrapper: React.FC = () => {
               <div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status da Previsão</span><span className="text-lg font-black uppercase tracking-tight">Híbrida: Real + PCP</span></div>
             </div>
 
-            {/* Novo Box de Status do Banco */}
-            <div className={`flex items-center gap-4 p-6 rounded-2xl shadow-xl min-w-[240px] transition-all duration-500 ${supabaseStatus === 'online' ? 'bg-emerald-600 shadow-emerald-200 text-white' : supabaseStatus === 'offline' ? 'bg-red-500 text-white' : 'bg-amber-400 text-amber-900'}`}>
-              <div className="p-3 bg-white/20 rounded-xl"><Database size={24} /></div>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-widest block mb-1 opacity-80">Base de Metas</span>
-                <span className="text-lg font-black uppercase tracking-tight">
-                  {supabaseStatus === 'pending' ? 'Carregando...' : supabaseStatus === 'offline' ? 'Offline' : `${metaData.length} Itens (OK)`}
-                </span>
+            {/* Box: Fonte de Dados Utilidades (Real) */}
+            <div className="flex items-center gap-4 p-5 rounded-2xl bg-white dark:bg-slate-800 shadow-xl border border-slate-100 dark:border-slate-700 min-w-[240px] group relative">
+              <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500 group-hover:scale-110 transition-transform duration-300">
+                <Activity size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Base Utilidades</span>
+                    <div className="group/path relative inline-block">
+                      <Info size={12} className="text-slate-300 cursor-help hover:text-blue-500 transition-colors" />
+                      <div className="absolute left-0 bottom-full mb-3 hidden group-hover/path:block bg-slate-900 text-white text-[11px] p-3 rounded-xl shadow-2xl z-[100] whitespace-nowrap border border-slate-700 animate-in fade-in zoom-in-95 backdrop-blur-md">
+                        <div className="font-bold text-amber-400 mb-1">Caminho na Rede:</div>
+                        <code className="text-[10px] opacity-90">\\brqbnwvfs02vs\Departamentos\GEM\Utilidades\2026\03- CONTROLE DE ENERGÉTICOS</code>
+                        <div className="absolute top-full left-3 -mt-1 border-[6px] border-transparent border-t-slate-900" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-black tracking-widest">
+                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                    CONECTADO
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-black text-slate-800 dark:text-white truncate">
+                    Diário de Bordo {lastRealDate ? `(Até ${lastRealDate.split('-').reverse().slice(0, 2).join('/')})` : '(Real)'}
+                  </span>
+                  {utilidadesLastModified && (
+                    <span className="text-[9px] font-bold text-slate-400 mt-0.5">
+                      Salvo na rede em: {utilidadesLastModified}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Box: Fonte de Dados PCP (Plano) */}
+            <div className="flex items-center gap-4 p-5 rounded-2xl bg-white dark:bg-slate-800 shadow-xl border border-slate-100 dark:border-slate-700 min-w-[220px]">
+              <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500"><FileText size={20} /></div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Base PCP</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-slate-800 dark:text-white truncate" title={fileName || "Automático"}>
+                    {fileName || "Automático"}
+                  </span>
+                  <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black tracking-widest ${n8nStatus === 'online' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    N8N {n8nStatus === 'online' ? 'OK' : 'OFF'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Box: Fonte de Dados Metas (Banco) */}
+            <div className={`flex items-center gap-4 p-5 rounded-2xl shadow-xl min-w-[220px] border transition-all duration-500 ${supabaseStatus === 'online' ? 'bg-emerald-100/50 border-emerald-100' : 'bg-amber-100/50 border-amber-100'}`}>
+              <div className={`p-3 rounded-xl ${supabaseStatus === 'online' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-amber-500/20 text-amber-600'}`}>
+                <Database size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Base de Metas</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-black truncate ${supabaseStatus === 'online' ? 'text-emerald-700' : 'text-amber-700'}`} title={metaFileName || "Banco de Dados"}>
+                    {metaFileName || (supabaseStatus === 'online' ? `${metaData.length} Itens (OK)` : 'Carregando...')}
+                  </span>
+                  <div className={`w-2 h-2 rounded-full ${supabaseStatus === 'online' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                </div>
               </div>
             </div>
           </div>
@@ -1756,13 +2079,73 @@ const DashboardWrapper: React.FC = () => {
               <div className="p-8"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Volume de Dados</span><div className="flex items-center gap-2"><Activity size={18} className="text-purple-500" /><span className="text-lg font-black text-slate-800">{pcpData.length} Registros</span></div></div>
             </div>
           </div>
+
+          {/* NOVO: Card de Orçamento Mensal (Prometido) */}
+          {monthlyBudget && (
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] p-8 text-white shadow-2xl mb-10 overflow-hidden relative group animate-in fade-in slide-in-from-top-4 duration-1000">
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full group-hover:bg-blue-500/20 transition-all duration-700"></div>
+              <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full group-hover:bg-emerald-500/20 transition-all duration-700"></div>
+
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md border border-white/10">
+                      <Target className="text-blue-400" size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black tracking-tight uppercase leading-none mb-1">Orçamento do Mês</h2>
+                      <p className="text-slate-400 text-[10px] font-black tracking-[0.2em] uppercase">Target Corporativo Consolidado</p>
+                    </div>
+                  </div>
+                  <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-slate-300">
+                    <Trophy size={16} className="text-amber-400" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{referenceMonth}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-12">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Produção</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-white">{monthlyBudget.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-bold text-slate-400">t</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Gás Natural</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-orange-400">{monthlyBudget.gas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-bold text-slate-400">m³/t</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Energia (EE)</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-amber-400">{monthlyBudget.energia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-bold text-slate-400">kWh/t</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Yield (RM)</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-emerald-400">{monthlyBudget.rendimento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-bold text-slate-400">%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6">
             <MetricCard
               title="Produção Total"
-              value={calculatedTotals.totalProducao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              value={calculatedTotals.totalProducao.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               unit="t"
+              meta={monthlyBudget?.producao}
               icon={<Boxes className="text-blue-600" />}
-              color="bg-blue-600"
+              color="text-blue-600"
+              helpText="Soma total da produção prevista para o mês, unindo dados reais e planejamento PCP."
               indicator={calculatedTotals.lastOrder ? {
                 label: "Último Material",
                 value: `${calculatedTotals.lastOrder.desc} @ ${calculatedTotals.lastOrder.timeStr}`,
@@ -1784,17 +2167,46 @@ const DashboardWrapper: React.FC = () => {
                 details: calculatedTotals.cutDetails
               } : undefined)}
             />
-            <MetricCard title="Consumo Gás (Plan)" value={calculatedTotals.avgGas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="m³/t" icon={<Flame className="text-orange-600" />} color="bg-orange-600" />
-            <MetricCard title="Consumo Energia (Plan)" value={calculatedTotals.avgEE.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="kWh/t" icon={<Zap className="text-yellow-600" />} color="bg-yellow-600" />
-            <MetricCard title="Rendimento Med." value={calculatedTotals.avgRM.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="%" icon={<Percent className="text-emerald-600" />} color="bg-emerald-600" />
-            <MetricCard title="Massa Linear" value={calculatedTotals.avgMassaLinear.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} unit="kg/m" icon={<Weight className="text-slate-800" />} color="bg-slate-800" />
-            <MetricCard title="Produtividade" value={calculatedTotals.avgProd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="t/h" icon={<BarChart4 className="text-purple-600" />} color="bg-purple-600" />
+            <MetricCard
+              title="Consumo Gás (Plan)"
+              value={calculatedTotals.avgGas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              unit="m³/t"
+              meta={monthlyBudget?.gas}
+              inverse
+              icon={<Flame className="text-orange-600" />}
+              color="text-orange-600"
+              helpText="Média ponderada do consumo de gás natural previsto por tonelada produzida."
+              indicator={{
+                label: "Custo Total Plan.",
+                value: `R$ ${calculatedTotals.totalCustoGas.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
+                color: "text-orange-600"
+              }}
+            />
+            <MetricCard
+              title="Consumo Energia (Plan)"
+              value={calculatedTotals.avgEE.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              unit="kWh/t"
+              meta={monthlyBudget?.energia}
+              inverse
+              icon={<Zap className="text-yellow-600" />}
+              color="text-amber-600"
+              helpText="Média ponderada do consumo de energia elétrica previsto por tonelada produzida."
+              indicator={{
+                label: "Custo Total Plan.",
+                value: `R$ ${calculatedTotals.totalCustoEnergia.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
+                color: "text-amber-600"
+              }}
+            />
+            <MetricCard title="Rendimento Med." value={calculatedTotals.avgRM.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="%" meta={monthlyBudget?.rendimento} icon={<Percent className="text-emerald-600" />} color="text-emerald-600" helpText="Rendimento metálico médio esperado com base no mix de produtos planejado." />
+            <MetricCard title="Massa Linear" value={calculatedTotals.avgMassaLinear.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} unit="kg/m" icon={<Weight className="text-slate-800" />} color="text-slate-800" helpText="Massa linear média do mix de produtos (peso por metro)." />
+            <MetricCard title="Produtividade" value={calculatedTotals.avgProd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="t/h" icon={<BarChart4 className="text-purple-600" />} color="text-purple-600" helpText="Capacidade média de produção horária prevista para o mix atual." />
             <MetricCard
               title="Setup"
               value={calculatedTotals.totalSetupHoras.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               unit="h"
               icon={<Clock className="text-indigo-600" />}
-              color="bg-indigo-600"
+              color="text-indigo-600"
+              helpText="Tempo total estimado para trocas de bitola e preparações de máquina no mês."
               indicator={{
                 label: "Impacto (+800m³/h)",
                 value: `+${(calculatedTotals.setupGasPenalty || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} m³`,
@@ -1805,158 +2217,98 @@ const DashboardWrapper: React.FC = () => {
           {pcpData.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Gráfico 1: Gás Natural vs Produção */}
-              <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/50 shadow-xl">
-                <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-red-600 mb-6 uppercase tracking-tight">
-                  Consumo Específico de Gás
-                </h3>
-                <div className="h-[500px]">
+              <div className="glass-card p-8 rounded-[2.5rem] border-border shadow-xl">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-2xl font-black text-foreground uppercase tracking-tight flex items-center gap-2">
+                    <Flame className="text-orange-500" /> Monitoramento Térmico
+                  </h3>
+                  <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-secondary">
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-blue-500 rounded-full"></div> Produção</div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-orange-500 rounded-full"></div> Gás Plan.</div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-destructive rounded-sm opacity-30"></div> Estouro Meta</div>
+                  </div>
+                </div>
+                <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="colorProd" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeWidth={1.5} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                       <XAxis
                         dataKey="data"
-                        axisLine={{ stroke: '#cbd5e1', strokeWidth: 2 }}
-                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
-                        height={30}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        yAxisId="left"
-                        axisLine={{ stroke: '#3b82f6', strokeWidth: 2 }}
+                        axisLine={false}
                         tickLine={false}
-                        tick={{ fill: '#3b82f6', fontSize: 12, fontWeight: 700 }}
-                        domain={[0, 'auto']}
+                        tick={{ fill: 'var(--secondary)', fontSize: 11, fontWeight: 700 }}
                       />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        axisLine={{ stroke: '#fb923c', strokeWidth: 2 }}
-                        tickLine={false}
-                        tick={{ fill: '#fb923c', fontSize: 12, fontWeight: 700 }}
-                        domain={[0, (dataMax: number) => Math.max(dataMax * 3, 100)]} // Força a escala a ser 3x maior para a linha baixar
-                      />
+                      <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#3b82f6', fontSize: 11, fontWeight: 700 }} />
+                      <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#f97316', fontSize: 11, fontWeight: 700 }} />
                       <Tooltip
-                        formatter={tooltipFormatter}
                         contentStyle={{
-                          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                          borderRadius: '20px',
-                          border: '2px solid #e2e8f0',
-                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04)',
-                          padding: '16px',
-                          fontWeight: 600
+                          backgroundColor: 'var(--card)',
+                          borderColor: 'var(--border)',
+                          borderRadius: '1.5rem',
+                          color: 'var(--foreground)',
+                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'
                         }}
-                        labelStyle={{ fontWeight: 800, marginBottom: '8px', color: '#1e293b' }}
                       />
-                      <Legend
-                        verticalAlign="top"
-                        height={50}
-                        wrapperStyle={{ paddingBottom: '20px' }}
-                        iconType="circle"
-                        formatter={(value) => <span style={{ fontWeight: 700, fontSize: '14px' }}>{value}</span>}
-                      />
-                      <Area
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="producao"
-                        stroke="#3b82f6"
-                        strokeWidth={3}
-                        fill="url(#colorProd)"
-                        name="Produção (t)"
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="gasEspecifico"
-                        stroke="#fb923c"
-                        strokeWidth={3}
-                        dot={false}
-                        name="Gás Natural (m³/t)"
-                      />
+                      <Area yAxisId="left" type="monotone" dataKey="producao" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorProd)" name="Produção (t)" />
+                      <Area yAxisId="right" type="stepAfter" dataKey="gasLoss" stroke="transparent" fillOpacity={1} fill="url(#colorLoss)" name="Ineficiência" stackId="loss" />
+                      <Line yAxisId="right" type="monotone" dataKey="gasMeta" stroke="var(--secondary)" strokeDasharray="5 5" strokeWidth={1} dot={false} name="Meta Específica" />
+                      <Line yAxisId="right" type="monotone" dataKey="gasEspecifico" stroke="#f97316" strokeWidth={4} dot={{ r: 4, fill: '#f97316' }} name="Gás m³/t" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
               {/* Gráfico 2: Energia vs Produção */}
-              <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/50 shadow-xl">
-                <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-yellow-600 mb-6 uppercase tracking-tight">
-                  Consumo Específico de Energia
-                </h3>
-                <div className="h-[500px]">
+              <div className="glass-card p-8 rounded-[2.5rem] border-border shadow-xl">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-2xl font-black text-foreground uppercase tracking-tight flex items-center gap-2">
+                    <Zap className="text-amber-500" /> Eficiência Elétrica
+                  </h3>
+                  <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-secondary">
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-blue-500 rounded-full"></div> Produção</div>
+                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-500 rounded-full"></div> Energia Plan.</div>
+                  </div>
+                </div>
+                <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <defs>
-                        <linearGradient id="colorProd2" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
+                        <linearGradient id="colorEE" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeWidth={1.5} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                       <XAxis
                         dataKey="data"
-                        axisLine={{ stroke: '#cbd5e1', strokeWidth: 2 }}
-                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
-                        height={30}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        yAxisId="left"
-                        axisLine={{ stroke: '#3b82f6', strokeWidth: 2 }}
+                        axisLine={false}
                         tickLine={false}
-                        tick={{ fill: '#3b82f6', fontSize: 12, fontWeight: 700 }}
-                        domain={[0, 'auto']}
+                        tick={{ fill: 'var(--secondary)', fontSize: 11, fontWeight: 700 }}
                       />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        axisLine={{ stroke: '#f59e0b', strokeWidth: 2 }}
-                        tickLine={false}
-                        tick={{ fill: '#f59e0b', fontSize: 12, fontWeight: 700 }}
-                        domain={[0, (dataMax: number) => Math.max(dataMax * 3, 200)]} // Força a escala a ser 3x maior para a linha baixar
-                      />
+                      <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#3b82f6', fontSize: 11, fontWeight: 700 }} />
+                      <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#f59e0b', fontSize: 11, fontWeight: 700 }} />
                       <Tooltip
-                        formatter={tooltipFormatter}
                         contentStyle={{
-                          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                          borderRadius: '20px',
-                          border: '2px solid #e2e8f0',
-                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04)',
-                          padding: '16px',
-                          fontWeight: 600
+                          backgroundColor: 'var(--card)',
+                          borderColor: 'var(--border)',
+                          borderRadius: '1.5rem',
+                          color: 'var(--foreground)',
+                          boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'
                         }}
-                        labelStyle={{ fontWeight: 800, marginBottom: '8px', color: '#1e293b' }}
                       />
-                      <Legend
-                        verticalAlign="top"
-                        height={50}
-                        wrapperStyle={{ paddingBottom: '20px' }}
-                        iconType="circle"
-                        formatter={(value) => <span style={{ fontWeight: 700, fontSize: '14px' }}>{value}</span>}
-                      />
-                      <Area
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="producao"
-                        stroke="#3b82f6"
-                        strokeWidth={3}
-                        fill="url(#colorProd2)"
-                        name="Produção (t)"
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="energiaEspecifica"
-                        stroke="#f59e0b"
-                        strokeWidth={3}
-                        dot={false}
-                        name="Energia (kWh/t)"
-                      />
+                      <Area yAxisId="left" type="monotone" dataKey="producao" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorProd)" name="Produção (t)" />
+                      <Line yAxisId="right" type="monotone" dataKey="energiaMeta" stroke="var(--secondary)" strokeDasharray="5 5" strokeWidth={1} dot={false} name="Meta Específica" />
+                      <Line yAxisId="right" type="monotone" dataKey="energiaEspecifica" stroke="#f59e0b" strokeWidth={4} dot={{ r: 4, fill: '#f59e0b' }} name="Energia kWh/t" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -2026,9 +2378,14 @@ const DashboardWrapper: React.FC = () => {
   const isFullScreen = location.pathname === '/simulador-hrs';
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 selection:bg-blue-200 ${isFullScreen ? 'overflow-hidden' : 'pb-20'}`}>
+    <div
+      className={`min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-blue-900 selection:bg-blue-500/30 transition-colors duration-500 ${isFullScreen ? 'overflow-hidden' : 'pb-20'}`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {!isFullScreen && (
-        <header className="backdrop-blur-xl bg-white/50 border-b border-white/40 sticky top-0 z-50 px-8 py-4 shadow-lg">
+        <header className="backdrop-blur-xl bg-white/50 dark:bg-slate-900/50 border-b border-white/40 dark:border-slate-800 sticky top-0 z-50 px-8 py-4 shadow-lg">
           <DashboardHeader
             onFileUpload={handleFileUpload} pcpLoaded={pcpData.length > 0} metasLoaded={metaData.length > 0}
             onGenerate={() => handleToggleView('forecast')} onSave={() => setSuccessMsg("Dados Salvos!")}
@@ -2040,19 +2397,16 @@ const DashboardWrapper: React.FC = () => {
             onUploadSecondary={(file) => handleFileUpload(file, 'pcp_sec')}
             hasSecondary={pcpSecondary.length > 0}
             onOpenComparator={() => { setShowComparator(true); navigate('/comparator'); }}
-            // @ts-ignore
-            alertRules={alertRules}
-            // @ts-ignore
-            onUpdateAlertRules={setAlertRules}
             currentMetrics={{
-              rendimento: calculatedTotals.avgRM,
-              gas: calculatedTotals.avgGas,
-              energia: calculatedTotals.avgEE,
-              producao: calculatedTotals.totalProducao
+              rendimento: manualAcum.rm,
+              gas: manualAcum.producao > 0 ? manualAcum.gn / manualAcum.producao : 0,
+              energia: manualAcum.producao > 0 ? manualAcum.ee / manualAcum.producao : 0,
+              producao: manualAcum.producao
             }}
             supabaseStatus={supabaseStatus}
             forecastMetrics={{
               rendimento: manualAcum.rm,
+              futureRM: hybridForecast.futureRM,
               gas: hybridForecast.gas,
               energia: hybridForecast.energia,
               producao: hybridForecast.producao
@@ -2065,11 +2419,13 @@ const DashboardWrapper: React.FC = () => {
             }}
             manualAcum={manualAcum}
             corteDate={corteDate}
+            costs={costs}
+            onInstallApp={deferredPrompt ? handleInstallApp : undefined}
           />
         </header>
       )}
 
-      <main className={isFullScreen ? "h-screen w-screen overflow-hidden" : "max-w-[1600px] mx-auto px-8 py-10"} id="dashboard-content">
+      <main className={isFullScreen ? "h-screen w-screen overflow-hidden" : "max-w-[1700px] mx-auto px-8 py-10"} id="dashboard-content">
         {/* DEBUG PANEL - ATIVO (Solicitação do Usuário) - Ocultar em FullScreen */}
         {!isFullScreen && (
           <div className="bg-slate-900 text-emerald-400 p-4 mb-6 rounded-xl font-mono text-xs shadow-lg border border-emerald-900/50 overflow-x-auto">

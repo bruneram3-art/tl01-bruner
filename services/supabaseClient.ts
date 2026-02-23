@@ -395,3 +395,51 @@ export const savePcpToSupabase = async (pcpData: any[]) => {
     throw err;
   }
 };
+
+export const saveKPIJustification = async (kpi_type: string, justification: string, month_ref: string, user = "Sistema") => {
+  try {
+    const { data, error } = await supabase
+      .from('kpi_justifications')
+      .upsert({
+        kpi_type,
+        justification,
+        month_ref,
+        created_by: user
+      }, { onConflict: 'kpi_type,month_ref' }); // Precisa de constraint unique para isso funcionar no upsert
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("Erro ao salvar justificativa de KPI:", err);
+    throw err;
+  }
+};
+
+export const getKPIJustifications = async (month_ref: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('kpi_justifications')
+      .select('*')
+      .eq('month_ref', month_ref);
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("Erro ao buscar justificativas de KPI:", err);
+    return [];
+  }
+};
+
+export const deleteKPIJustification = async (kpi_type: string, month_ref: string) => {
+  try {
+    const { error } = await supabase
+      .from('kpi_justifications')
+      .delete()
+      .match({ kpi_type, month_ref });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error("Erro ao excluir justificativa de KPI:", err);
+    throw err;
+  }
+};

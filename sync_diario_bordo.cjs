@@ -1,5 +1,6 @@
 const XLSX = require('xlsx');
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
 const path = require('path');
 
 // Configurações do Supabase
@@ -8,6 +9,14 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const EXCEL_PATH = "\\\\brqbnwvfs02vs\\Departamentos\\GEM\\Utilidades\\2026\\03- CONTROLE DE ENERGÉTICOS\\NOVO DIARIO DE BORDO 2026 REV 01.xlsx";
+
+// Captura a data de modificação do arquivo físico
+let fileModTime = null;
+try {
+    fileModTime = fs.statSync(EXCEL_PATH).mtime.toISOString();
+} catch (e) {
+    console.warn('Não foi possível ler metadados do arquivo.');
+}
 
 // Função para converter data do Excel (serial) para YYYY-MM-DD
 function excelDateToISO(serial) {
@@ -32,6 +41,7 @@ async function runSync() {
                 const headers = rows[headerIdx];
                 const colProd = headers.indexOf('Laminação (t)');
                 const colTL02 = headers.indexOf('TL02 (t)');
+                const colComent = headers.find(h => h && h.includes('Ocorrências') || h.includes('Comentário') || h.includes('Eventos'));
 
                 rows.slice(headerIdx + 1).forEach(row => {
                     const dt = excelDateToISO(row[0]);
@@ -40,9 +50,11 @@ async function runSync() {
                             data: dt,
                             producao_laminacao: parseFloat(row[colProd]) || 0,
                             producao_tl02: parseFloat(row[colTL02]) || 0,
+                            comentario: colComent !== -1 ? (row[colComent] || "") : "",
                             consumo_gas_tl01: 0,
                             consumo_gas_tl02: 0,
-                            consumo_energia_total: 0
+                            consumo_energia_total: 0,
+                            data_modificacao_arquivo: fileModTime
                         });
                     }
                 });
@@ -59,6 +71,7 @@ async function runSync() {
                 const colGasTL01 = headers.indexOf('Laminação TL01 (m³)');
                 const colGasTL02 = headers.indexOf('Laminação TL02 (Calculado) (m³)');
                 const colPCS = headers.indexOf('PCS(kcal/m³)');
+                const colFatorPCS = headers.indexOf('Fator PCS');
 
                 rows.slice(headerIdx + 1).forEach(row => {
                     const dt = excelDateToISO(row[0]);
@@ -67,6 +80,7 @@ async function runSync() {
                         entry.consumo_gas_tl01 = parseFloat(row[colGasTL01]) || 0;
                         entry.consumo_gas_tl02 = parseFloat(row[colGasTL02]) || 0;
                         entry.pcs_gn = parseFloat(row[colPCS]) || 0;
+                        entry.fator_pcs = parseFloat(row[colFatorPCS]) || null;
                     }
                 });
             }
