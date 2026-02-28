@@ -19,6 +19,9 @@ interface Props {
   onConfigCosts: () => void;
   healthScore?: number;
   healthIssues?: any[];
+  missingSaps?: string[];
+  pcpData?: any[];
+  onMetaSaved?: () => void;
   onUploadSecondary?: (file: File) => void;
   hasSecondary?: boolean;
   onOpenComparator?: () => void;
@@ -70,6 +73,9 @@ export const DashboardHeader: React.FC<Props> = ({
   onConfigCosts,
   healthScore,
   healthIssues,
+  missingSaps,
+  pcpData,
+  onMetaSaved,
   onUploadSecondary,
   hasSecondary,
   onOpenComparator,
@@ -140,7 +146,13 @@ export const DashboardHeader: React.FC<Props> = ({
 
               {/* Health Score */}
               {healthScore !== undefined && (
-                <HealthScorePanel score={healthScore} issues={healthIssues || []} />
+                <HealthScorePanel
+                  score={healthScore}
+                  issues={healthIssues || []}
+                  missingSaps={missingSaps}
+                  pcpData={pcpData}
+                  onMetaSaved={onMetaSaved}
+                />
               )}
 
               {/* Gemini Button */}

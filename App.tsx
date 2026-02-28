@@ -2393,6 +2393,9 @@ const DashboardWrapper: React.FC = () => {
             onConfigCosts={() => setShowCostConfig(true)}
             healthScore={healthScore}
             healthIssues={healthIssues}
+            missingSaps={missingSaps}
+            pcpData={pcpData}
+            onMetaSaved={fetchData}
             // @ts-ignore
             onUploadSecondary={(file) => handleFileUpload(file, 'pcp_sec')}
             hasSecondary={pcpSecondary.length > 0}
