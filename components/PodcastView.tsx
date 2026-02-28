@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Headphones, Calendar, Clock, Mic2, Star, Share2, Plus, Edit2, Trash2, X, Upload, Save, CheckCircle, Activity, FileText } from 'lucide-react';
+import { Play, Pause, Headphones, Calendar, Clock, Mic2, Star, Share2, Plus, Edit2, Trash2, X, Upload, Save, CheckCircle, Activity, FileText, Check } from 'lucide-react';
 
 interface Podcast {
     id: number;
@@ -228,6 +228,22 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
         setIsModalOpen(false);
     };
 
+    const extractBullets = (transcription?: string) => {
+        if (!transcription) return [];
+        const lines = transcription.split('\n');
+        const bullets = lines
+            .filter(line => line.trim().startsWith('## '))
+            .map(line => line.replace(/^##\s+/, '').replace(/^\d+\.\s*/, '').trim());
+        return bullets.slice(0, 3); // Retorna no máximo 3 bullets
+    };
+
+    const handleShareWhatsApp = (ep: Podcast) => {
+        const appUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+        const text = `*Novo Episódio:* ${ep.title}\n\n${ep.description}\n\nOuça agora em: ${appUrl}`;
+        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
+
     return (
         <div className="w-full max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Hero Section */}
@@ -290,19 +306,51 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
                                     <h4 className="text-xl font-bold text-slate-800">{ep.title}</h4>
                                     <p className="text-sm text-slate-500 line-clamp-2">{ep.description}</p>
 
+                                    {/* Bullets Inteligentes (Extraídos da Transcrição) */}
+                                    {ep.transcription && extractBullets(ep.transcription).length > 0 && (
+                                        <div className="mt-4 bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                            <h5 className="text-[10px] font-black uppercase text-slate-400 mb-2 flex items-center gap-1">
+                                                <Star size={12} className="text-purple-400" /> Destaques do Episódio
+                                            </h5>
+                                            <ul className="space-y-1.5 pl-1">
+                                                {extractBullets(ep.transcription).map((bullet, idx) => (
+                                                    <li key={idx} className="flex items-start gap-2 text-xs font-medium text-slate-600">
+                                                        <Check size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                        <span className="line-clamp-1">{bullet}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
                                     {activeEpisodeId === ep.id && (
-                                        <div className="w-full h-1 bg-slate-100 rounded-full mt-2 overflow-hidden">
+                                        <div className="w-full h-1 bg-slate-100 rounded-full mt-4 overflow-hidden">
                                             <div className="h-full bg-purple-500" style={{ width: `${progress}%` }} />
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleEdit(ep)} className="p-2 hover:bg-slate-50 rounded-lg text-slate-400"><Edit2 size={18} /></button>
-                                    <button onClick={() => handleDelete(ep.id)} className="p-2 hover:bg-slate-50 rounded-lg text-slate-400"><Trash2 size={18} /></button>
-                                    {ep.transcription && (
-                                        <button onClick={() => { setActiveTranscription(ep.transcription || null); setIsTranscriptionOpen(true); }} className="p-2 hover:bg-slate-50 rounded-lg text-emerald-600"><FileText size={18} /></button>
-                                    )}
+                                <div className="flex flex-col gap-2 shrink-0">
+                                    <button
+                                        onClick={() => handleShareWhatsApp(ep)}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold rounded-xl transition-all"
+                                        title="Compartilhar no WhatsApp"
+                                    >
+                                        <Share2 size={16} /> <span className="text-xs hidden md:inline">Compartilhar</span>
+                                    </button>
+                                    <div className="flex gap-2 w-full">
+                                        {ep.transcription && (
+                                            <button onClick={() => { setActiveTranscription(ep.transcription || null); setIsTranscriptionOpen(true); }} className="flex-1 p-2 bg-slate-50 hover:bg-purple-50 hover:text-purple-600 rounded-xl text-slate-400 flex items-center justify-center transition-colors" title="Ler Narração">
+                                                <FileText size={18} />
+                                            </button>
+                                        )}
+                                        <button onClick={() => handleEdit(ep)} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors" title="Editar">
+                                            <Edit2 size={18} />
+                                        </button>
+                                        <button onClick={() => handleDelete(ep.id)} className="p-2 bg-slate-50 hover:bg-rose-50 hover:text-rose-500 rounded-xl text-slate-400 transition-colors" title="Excluir">
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
