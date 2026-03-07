@@ -1,0 +1,2229 @@
+--- PAGE 1 ---
+PLANO DE CÂMBIO
+ 
+IDRPT: PADRAO
+.
+007
+
+Data de Impressão: 02
+/
+03
+/
+2026 17
+:
+51
+ 
+Página 1 de 4
+
+FILTRO:
+
+PADRÃO: CH 2 1
+/
+2 X
+ 
+3/8
+" (APROVADO
+)
+
+Cópia não controlada - Válida por 10 dias após: 02
+/
+03
+/
+2026 - Variação de área nas gaiolas de +/-
+ 
+0.
+5 mm
+
+Revisado: 18
+/
+09
+/
+2025
+
+OBSERVAÇÕES
+
+* CONFERIR AXIAL DOS CILINDROS DAS GAIOLAS VERTICAIS DEPOI DE BASCULAR
+.
+
+* VERIFICAR SISTEMA DE LUBRIFICAÇÃO DAS GUIAS DEPOIS DE ACOPLAR AS GAIOLAS NA LAMINADOR
+.
+
+* AJUSTAR RASPADOR SEMPRE QUE MUDAR CANAL E LUZ
+.
+
+CADEIRA
+ 
+1
+: adicionado fator de alongamento
+
+CADEIRA
+ 
+2
+: adicionado fator de alongamento
+
+CADEIRA
+ 
+3
+: adicionado fator de alongamento
+
+CADEIRA
+ 
+4
+: adicionado fator de alongamento
+
+CADEIRA
+ 
+5
+: adicionado fator de alongamento
+
+CADEIRA
+ 
+6
+: adicionado fator de alongamento
+
+CADEIRA
+ 
+7
+: adicionado fator de alongamento
+
+TESOURA
+ 
+2
+
+NAV. (SUP
+)
+
+NAV. (INF
+)
+
+GUIA
+ 
+(
+ENT
+)
+
+ALTURA
+
+LARGURA
+
+VOLANTE
+
+SH2
+
+DESACOPLADO
+
+SH2
+
+CALHA SH1
+
+NC
+ 
+NC
+
+80,0
+ 
+NC
+
+TESOURA
+ 
+1
+
+NAV. (SUP
+)
+
+NAV. (INF
+)
+
+GUIA
+ 
+(
+ENT
+)
+
+ALTURA
+
+LARGURA
+
+VOLANTE
+
+SH1
+
+DESACOPLADO
+
+90,0
+ 
+NC
+
+NC
+NC
+
+CALHA SH1
+
+SH1
+
+TESOURA
+ 
+3
+
+NAV. (SUP
+)
+
+NAV. (INF
+)
+
+GUIA
+ 
+(
+ENT
+)
+
+ALTURA
+
+LARGURA
+
+VOLANTE
+
+MODO CORTE
+
+CHF/001
+
+DESACOPLADO
+
+ROTATIVA
+
+CHF/001
+
+155170/A12
+
++/-5
+920,0
+
+80,0
+ 
++/-5
+
+PINCHROLL
+
+ROLO
+ 
+(
+SUP
+)
+
+ESPAC. EXT
+.
+
+LUZ
+
+ROLO
+ 
+(
+INF
+)
+
+ALTURA C. ENT
+.
+
+ABERT.
+ 
+C
+. ENT
+.
+
+ALT. ROLO INF
+.
+
+ESPAC. INT
+.
+
+9,0
+
+4.949247.N
+
+SUP.0 X INF.0
+
+SUP.70 X INF.70
+
++/-5
+930
+
+80
+ 
++/-3
+880
+
+4.949247.N
+
++/-3
+
++/-0,2
+
+FORNO
+
+TIPO CURVA
+ 
+CURVA 4
+
+GAIOLA
+ 
+PERFIL
+
+CILINDRO
+/
+
+CANAL
+
+LUZ
+
+H/V
+
+LUZ
+
+H/V
+
+CARGA
+
+DIMENSÕES
+
+L / A /
+ 
+E
+ 
+GUIA DE ENTRADA
+ 
+GUIA DE SAÍDA
+
+REF
+.
+
+S x I
+
+FUNIL
+
+E x S
+
+ROLO ENT
+/
+SAI
+
+ALTURA x TOL
+
+CAPAC.
+
+CANAL
+
+(t)
+FR(%)
+
+0072
+ 
+15,4
+ 
+16,4
+
+01
+
+GUIA: AEC 3540
+.Q/A
+07
+
+ESPAÇADOR: 707337
+/
+007
+
+ABERTURA: 163
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUC 3541
+.D/A
+08
+
+ESPAÇADOR SUPERIOR:
+
+4.
+890697
+.V/
+068
+
+ESPAÇADOR INFERIOR:
+
+4.
+707338
+.Q/
+008
+
+ABERTURA: 200
+,
+0
+ 
+[
+NC
+]
+
+ALTURA: 130
+,0
+
+LARGURA: NC
+
+CAD1
+
+(
+6548
+-H)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L163,4
+
+A98,8
+
+1
+
+1
+
+25.000,0
+
+FR:1,399 %
+
+0073
+ 
+13,8
+ 
+14,8
+
+002
+
+GUIA: FRS12T 12T
+
+BASE: 291785
+/5.
+B
+
+ESPAÇADOR SUPERIOR:
+
+8.
+170644
+.X/A
+15
+ 
+(L
+152MM
+)
+
+ESPAÇADOR INFERIOR:
+
+8.
+170644
+.X/A
+15
+ 
+(L
+152MM
+)
+
+ROLETE : 890614
+/
+003
+
+ESTÁTICO: 534
+/
+004 - 490
+/
+005
+
+(A
+60 X L100) [ABERTURA:
+
+175MM]
+
+FUNIL: 163499
+/A
+03
+
+ABERTURA: 106
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUV 7527
+.C/A
+04
+
+ESPAÇADOR SUPERIOR:
+
+980606
+/
+004
+
+ESPAÇADOR INFERIOR:
+
+707340
+/
+004
+
+CAD2
+
+(
+6548
+-V)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L114,0
+
+A109,8
+
+1
+
+1
+
+25.000,0
+
+FR:1,292 %
+
+0076
+ 
+14,0
+ 
+15,0
+
+003
+
+GUIA: AEC 3540
+.Q/A
+08
+
+ESPAÇADOR SUPERIOR:
+
+707337
+/
+008
+
+ESPAÇADOR INFERIOR:
+
+707337
+/
+008
+
+ABERTURA: 123
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUC 3541
+.D/A
+09
+
+ESPAÇADOR SUPERIOR:
+
+890697
+/
+069
+
+ESPAÇADOR INFERIOR:
+
+707338
+/
+009
+
+ABERTURA: 170
+,
+0
+ 
+[
+NC
+]
+
+ALTURA: 110
+,0
+
+LARGURA: NC
+
+CAD3
+
+(
+6548
+-H)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L124,0
+
+A77,0
+
+1
+
+1
+
+12.000,0
+
+FR:1,434 %--- PAGE 2 ---
+PLANO DE CÂMBIO
+ 
+IDRPT: PADRAO
+.
+007
+
+Data de Impressão: 02
+/
+03
+/
+2026 17
+:
+52
+ 
+Página 2 de 4
+
+FILTRO:
+
+PADRÃO: CH 2 1
+/
+2 X
+ 
+3/8
+" (APROVADO
+)
+
+GAIOLA
+ 
+PERFIL
+
+CILINDRO
+/
+
+CANAL
+
+LUZ
+
+H/V
+
+LUZ
+
+H/V
+
+CARGA
+
+DIMENSÕES
+
+L / A /
+ 
+E
+ 
+GUIA DE ENTRADA
+ 
+GUIA DE SAÍDA
+
+REF
+.
+
+S x I
+
+FUNIL
+
+E x S
+
+ROLO ENT
+/
+SAI
+
+ALTURA x TOL
+
+CAPAC.
+
+CANAL
+
+(t)
+FR(%)
+
+0079
+ 
+7,6
+ 
+8,6
+
+004
+
+GUIA: FRS
+9
+T
+ 
+9
+T
+
+BASE: 285598
+.
+A
+
+ESPAÇADOR SUPERIOR:
+
+8.
+170762
+.W/A
+11
+ (L
+122MM
+)
+
+ESPAÇADOR INFERIOR:
+
+8.
+170762
+.W/A
+11
+ (L
+122MM
+)
+
+ROLETE : 897750
+/
+095
+
+ESTÁTICO: 519
+/
+003 - 490
+/
+015
+
+(A
+55 X L80) [ABERTURA: 150MM]
+
+FUNIL: 163468
+/A
+03
+
+ABERTURA: 80
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUT3 3
+
+RASPADORES SUPERIOR:
+
+4.
+890794
+.W/
+017
+
+RASPADORES INFERIOR:
+
+4.
+890794
+.W/
+017
+
+CAD4
+
+(
+5543
+-V)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L88,0
+
+A88,0
+
+3
+
+3
+
+22.000,0
+
+FR:1,413 %
+
+0060
+ 
+14,0
+ 
+15,0
+
+005
+
+GUIA: AEC 3540
+.Q/A
+09
+
+ESPAÇADOR: 707337
+/
+009
+
+ABERTURA: 103
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUC 3541
+.D/A
+12
+
+TAMPA SUPERIOR:
+
+4.
+890697
+.V/
+082
+
+TAMPA INFERIOR:
+
+4.
+707338
+.Q/
+013
+
+ABERTURA: 165
+,
+0
+ 
+[
+NC
+]
+
+ALTURA: 90
+,0
+
+LARGURA: NC
+
+CAD5
+
+(
+7543
+-H)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L107,0
+
+A52,3
+
+1
+
+1
+
+16.000,0
+
+FR:1,311 %
+
+0061
+ 
+9,8
+ 
+10,8
+
+006
+
+GUIA: FRS
+9
+T
+ 
+9
+T
+
+BASE: 285598
+.
+A
+
+ESPAÇADOR SUPERIOR:
+
+8.
+170762
+.W/A
+14
+ 
+(L
+92MM
+)
+
+ESPAÇADOR INFERIOR:
+
+8.
+170762
+.W/A
+14
+ 
+(L
+92MM
+)
+
+ROLETE :
+ 
+C
+0344
+
+ESTÁTICO: 519
+/
+002 - 490
+/
+008
+
+(A
+65 X L60) [ABERTURA: 130MM]
+
+FUNIL: 163468
+/A
+06
+
+ABERTURA: 64
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUT2 2
+
+RASPADORES SUPERIOR:
+
+4.
+880853
+.W/
+011
+
+RASPADORES INFERIOR:
+
+4.
+880853
+.W/
+011
+
+CAD6
+
+(
+5543
+-V)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L66,0
+
+A66,0
+
+10
+
+10
+
+10.000,0
+
+FR:1,333 %
+
+0085
+ 
+28,0
+ 
+29,0
+
+MLG
+7
+
+GUIA: AEL2 2
+
+ESTÁTICO: 1707377
+Q/
+009
+ 
+(
+82
+,
+0
+
+X 75
+,4
+) [78
+,4
+]
+
+ABERTURA: 70
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUPH2 2
+
+BASE SUPERIOR:
+ 
+8.
+353012
+.C
+
+BASE INFERIOR:
+ 
+8.
+145719
+.
+M
+
+RASPADORES SUPERIOR:
+
+5.
+094050
+.V/
+005
+
+RASPADORES INFERIOR:
+
+5.
+094050
+.V/
+005
+
+CALÇO SUPERIOR: 40 mm
+
+CALÇO INFERIOR: 40 mm
+
+NARIZ: 871877
+/
+002
+
+CAD7
+
+(
+5543
+-H)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L89,0
+
+A29,0
+
+3
+ 
+7B
+
+3
+ 
+NC
+
+8.000,0
+
+FR:1,416 %
+
+0158
+ 
+7,3
+ 
+7,8
+
+319
+
+GUIA: SR9 9
+
+BASE: 3019
+/
+K
+
+ROLETE : 897750
+/
+041
+
+ESTÁTICO: 534116
+/
+062
+
+ABERTURA: 34
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUPV2 2
+
+BASE: 3015
+/
+F
+
+RASPADORES SUPERIOR:
+
+4.
+872024
+.N/
+007
+
+RASPADORES INFERIOR:
+
+4.
+872024
+.N/
+007
+
+PLATES: 278996
+.
+E
+
+CAD8
+
+(
+5543
+-V)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L65,0
+
+A34,0
+
+10
+ 
+02
+
+10
+ 
+NC
+
+4.000,0
+
+FR:1,285 %
+
+ML
+ 
+20,5
+ 
+21,0
+
+MLG
+9
+
+GUIA: PRD1 1
+
+BASE: 3021
+/
+D
+
+ESTÁTICO: 781
+/
+001
+ - 780
+/
+001
+
+ROLETE : 787191
+.
+N
+
+NARIZ: 558
+/
+001
+ - 562
+/
+001
+
+FUNIL: 145706
+/A
+02
+
+ABERTURA: 70
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUPH2 2
+
+BASE SUPERIOR:
+ 
+8.
+353012
+.C
+
+BASE INFERIOR:
+ 
+8.
+145719
+.
+M
+
+RASPADORES SUPERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+RASPADORES INFERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+CALÇO SUPERIOR: 45 mm
+
+CALÇO INFERIOR: 45 mm
+
+NARIZ: 871877
+/
+001
+
+CAD9
+
+(
+5543
+-H)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L76,0
+
+A21,0
+
+11
+ 
+02
+
+11
+ 
+NC
+
+6.000,0
+
+FR:1,450 %--- PAGE 3 ---
+PLANO DE CÂMBIO
+ 
+IDRPT: PADRAO
+.
+007
+
+Data de Impressão: 02
+/
+03
+/
+2026 17
+:
+52
+ 
+Página 3 de 4
+
+FILTRO:
+
+PADRÃO: CH 2 1
+/
+2 X
+ 
+3/8
+" (APROVADO
+)
+
+GAIOLA
+ 
+PERFIL
+
+CILINDRO
+/
+
+CANAL
+
+LUZ
+
+H/V
+
+LUZ
+
+H/V
+
+CARGA
+
+DIMENSÕES
+
+L / A /
+ 
+E
+ 
+GUIA DE ENTRADA
+ 
+GUIA DE SAÍDA
+
+REF
+.
+
+S x I
+
+FUNIL
+
+E x S
+
+ROLO ENT
+/
+SAI
+
+ALTURA x TOL
+
+CAPAC.
+
+CANAL
+
+(t)
+FR(%)
+
+0159
+ 
+23,5
+ 
+24,0
+
+312
+
+GUIA: SR9 9
+
+BASE: 3019
+/
+K
+
+ROLETE : 897750
+/
+041
+
+ESTÁTICO: 534116
+/
+055
+
+ABERTURA: 25
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUPV2 COM REFRIG
+
+BASE: 3015
+/
+F
+
+RASPADORES SUPERIOR:
+
+4.
+872024
+.N/
+006
+
+RASPADORES INFERIOR:
+
+4.
+872024
+.N/
+006
+
+PLATES: 279010
+.
+Q
+
+CAD10
+
+(
+5543
+-V)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L62,2
+
+A23,8
+
+14
+ 
+02
+
+14
+ 
+NC
+
+3.000,0
+
+FR:1,118 %
+
+ML
+ 
+14,5
+ 
+15,0
+
+MLG11
+
+GUIA: PRD1 1
+
+BASE: 3021
+/
+D
+
+ESTÁTICO: 781
+/
+001
+ - 780
+/
+001
+
+ROLETE : 787191
+.
+N
+
+NARIZ: 558
+/
+001
+ - 562
+/
+001
+
+FUNIL: 145706
+/A
+03
+
+ABERTURA: 65
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUPH2 2
+
+BASE SUPERIOR:
+ 
+8.
+353012
+.C
+
+BASE INFERIOR:
+ 
+8.
+145719
+.
+M
+
+RASPADORES SUPERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+RASPADORES INFERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+CALÇO SUPERIOR: 45 mm
+
+CALÇO INFERIOR: 45 mm
+
+NARIZ: 871877
+/
+001
+
+CAD11
+
+(
+7543
+-H)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L70,0
+ 
+17
+ 
+12
+
+17
+ 
+NC
+
+ML 100
+ 
++/-3
+
+ML 120
+ 
++/-3
+
+2.500,0
+
+E15,0
+ 
+FR:1,310 %
+
+ML
+ 
+10,1
+ 
+10,6
+
+MLG12
+
+GUIA: PRD1 1
+
+BASE: 3021
+/
+D
+
+ESTÁTICO: 781
+/
+001
+ - 780
+/
+001
+
+ROLETE : 787191
+.
+N
+
+NARIZ: 558
+/
+001
+ - 562
+/
+001
+
+FUNIL: 145706
+/A
+02
+
+ABERTURA: 75
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUPH2 2
+
+BASE SUPERIOR:
+ 
+8.
+353012
+.C
+
+BASE INFERIOR:
+ 
+8.
+145719
+.
+M
+
+RASPADORES SUPERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+RASPADORES INFERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+CALÇO SUPERIOR: 50 mm
+
+CALÇO INFERIOR: 50 mm
+
+NARIZ: 871877
+/
+001
+
+CAD12
+
+(
+7543
+-H)
+
+MARCHA: 1
+
+METALIZADO
+ 
+L74,0
+ 
+17
+ 
+12
+
+17
+ 
+NC
+
+ML 100
+ 
++/-3
+
+ML 120
+ 
++/-3
+
+4.000,0
+
+E10,6
+ 
+FR:1,354 %
+
+0160
+ 
+19,4
+ 
+19,9
+
+313
+
+GUIA: SR7 7
+
+BASE: 352995
+.
+B
+
+ROLETE : 517462
+/
+001
+
+ESTÁTICO: 534118
+/
+082
+
+ABERTURA: 13
+,
+0
+ 
+[
+NC
+]
+
+GUIA: AUPV2 COM REFRIG
+
+BASE: 3015
+/
+F
+
+RASPADORES SUPERIOR:
+
+4.
+872003
+.S/
+003
+
+RASPADORES INFERIOR:
+
+4.
+872003
+.S/
+003
+
+PLATES: 278999
+.
+Q
+
+CAD13
+
+(
+5543
+-V)
+
+MARCHA: 1
+
+L62,6
+ 
+15
+ 
+18
+
+15
+ 
+NC
+
+ML 100
+ 
++/-3
+
+ML 120
+ 
++/-3
+
+2.000,0
+
+E11,5
+ 
+FR:1,022 %
+
+ML
+ 
+9,1
+ 
+9,6
+
+MLG14
+
+GUIA: PRD2 2
+
+BASE: 3004
+/
+M
+
+ESTÁTICO: 378
+/
+001
+ - 379
+/
+001
+
+ROLETE : 787177
+.
+Z
+
+NARIZ: 553
+/
+001
+ - 563
+/
+001
+
+FUNIL: 145706
+/A
+02
+
+ABERTURA: 64
+,
+5
+ 
+[
+NC
+]
+
+GUIA: AUPH2 AUPH
+/
+ROLET
+
+BASE SUPERIOR:
+ 
+8.
+353012
+.C
+
+BASE INFERIOR:
+ 
+8.
+145719
+.
+M
+
+RASPADORES SUPERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+RASPADORES INFERIOR:
+
+4.
+871963
+.X/
+004 COMP. MIN. 520
+
+CALÇO SUPERIOR: 50 mm
+
+CALÇO INFERIOR: 50 mm
+
+NARIZ: 871877
+/
+002
+
+CAD14
+
+(
+5543
+-H)
+
+MARCHA: 1
+
+L63,5
+ 
+17
+ 
+13
+
+17
+ 
+NC
+
+ML 100
+ 
++/-3
+
+ML 120
+ 
++/-3
+
+1.500,0
+
+E9,6
+ 
+FR:1,172 %
+
+CALHA DUMMY
+CAD15
+
+CALHA DUMMY
+CAD16
+
+CALHA DUMMY
+CAD17
+
+HISTÓRICO DE ALTERAÇÕES--- PAGE 4 ---
+PLANO DE CÂMBIO
+ 
+IDRPT: PADRAO
+.
+007
+
+Data de Impressão: 02
+/
+03
+/
+2026 17
+:
+52
+ 
+Página 4 de 4
+
+FILTRO:
+
+PADRÃO: CH 2 1
+/
+2 X
+ 
+3/8
+" (APROVADO
+)
+
+GAIOLA
+ 
+PERFIL
+
+CILINDRO
+/
+
+CANAL
+
+LUZ
+
+H/V
+
+LUZ
+
+H/V
+
+CARGA
+
+DIMENSÕES
+
+L / A /
+ 
+E
+ 
+GUIA DE ENTRADA
+ 
+GUIA DE SAÍDA
+
+REF
+.
+
+S x I
+
+FUNIL
+
+E x S
+
+ROLO ENT
+/
+SAI
+
+ALTURA x TOL
+
+CAPAC.
+
+CANAL
+
+(t)
+FR(%)
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+1
+, era NC e foi solicitado a modificação para
+ 
+1,
+399
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola 10, era NC e foi solicitado a modificação para
+ 
+1,
+118
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola 11, era NC e foi solicitado a modificação para
+ 
+1,
+310
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola 12, era NC e foi solicitado a modificação para
+ 
+1,
+354
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola 13, era NC e foi solicitado a modificação para
+ 
+1,
+022
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola 14, era NC e foi solicitado a modificação para
+ 
+1,
+172
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+2
+, era NC e foi solicitado a modificação para
+ 
+1,
+292
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+3
+, era NC e foi solicitado a modificação para
+ 
+1,
+434
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+4
+, era NC e foi solicitado a modificação para
+ 
+1,
+413
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+5
+, era NC e foi solicitado a modificação para
+ 
+1,
+311
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+6
+, era NC e foi solicitado a modificação para
+ 
+1,
+333
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+7
+, era NC e foi solicitado a modificação para
+ 
+1,
+333
+.
+
+O valor do
+(a
+) FR (%), na gaiola
+ 
+7
+, era NC e foi solicitado a modificação para
+ 
+1,
+416
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+8
+, era NC e foi solicitado a modificação para
+ 
+1,
+416
+.
+
+O valor do
+(a
+) FR (%), na gaiola
+ 
+8
+, era NC e foi solicitado a modificação para
+ 
+1,
+285
+.
+
+06
+/
+08
+/
+2024 - FOI INSERIDO FATOR DE ALOGAMENTO
+.
+O valor do
+(a
+) FR (%), na gaiola
+ 
+9
+, era NC e foi solicitado a modificação para
+ 
+1,
+285
+.
+
+O valor do
+(a
+) FR (%), na gaiola
+ 
+9
+, era NC e foi solicitado a modificação para
+ 
+1,
+450
+.
+
+18
+/
+09
+/
+2025 - O valor do
+(a
+) TIPO DE CADEIRA, na gaiola
+ 
+5
+, era 2 e foi solicitado a modificação para
+ 
+4.
+
+O valor do
+(a
+) GUIA DE SAÍDA, na gaiola
+ 
+5
+, era 22 e foi solicitado a modificação para 93
+.
+
+O valor do
+(a
+) ABERTURA DA GUIA DE SAÍDA
+ 
+(
+mm
+)
+, na gaiola
+ 
+5
+, era 170
+,
+0 e foi solicitado a modificação para 165
+,0.
+
+O valor do
+(a
+) ALTURA DA GUIA DE SAÍDA
+ 
+(
+mm
+)
+, na gaiola
+ 
+5
+, era 110
+,
+0 e foi solicitado a modificação para 90
+,0.
+
+O valor do
+(a
+) CONJUNTO DE ROLOS DA GUIA DE SAÍDA, na gaiola
+ 
+5
+, era 21
+ e foi solicitado a modificação para
+ 
+2.
+
+O valor do
+(a
+) TIPO DE ACESSÓRIO DE INTERNO DA GUIA DE SAÍDA, na gaiola
+ 
+5
+, era 6 e foi solicitado a modificação para 11
+.
+
+O valor do
+(a
+) ID ACESSÓRIO DE INTERNO DA GUIA DE SAÍDA, na gaiola
+ 
+5
+, era 84 e foi solicitado a modificação para 747
+.

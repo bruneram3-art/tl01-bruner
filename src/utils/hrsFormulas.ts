@@ -7,6 +7,7 @@ import {
     PassConfig,
     MotorData
 } from './hrsTypes';
+import { recalculatePassV2 } from './hrsCoreV2';
 
 // --- Constants ---
 const STEEL_DENSITY = 0.00785; // g/mm³ -> kg/m / Area(mm²) ? Não, ajuste para densidade do aço
@@ -74,13 +75,26 @@ export const calcPerimeter = (type: PassType, width: number, height: number): nu
     }
 };
 
-/** Largura do canal baseada no tipo e geometria */
+/** Largura do canal baseada no tipo de passe */
 export const calcChannelWidth = (type: PassType, width: number): number => {
-    // Retorna a largura física do canal na ferramenta.
-    // Geralmente projeta-se o canal com uma folga para permitir o alargamento (spread) livre.
-    // Assumimos aqui uma folga padrão de ~4% em relação à largura nominal da barra de saída.
-    // Se a barra alargar mais que isso, haverá sobreenchimento visual.
-    return width * 1.04;
+    switch (type) {
+        case 'oval':
+        case 'swedish_oval':
+        case 'edge_oval':
+            // Canal oval define a forma da barra — folga lateral mínima (~2%)
+            return width * 1.02;
+        case 'round':
+            // Canal circular fecha completamente — sem folga lateral adicional
+            return width * 1.01;
+        case 'flat':
+            // Mesa lisa: a barra se alarga livremente — canal efetivo muito mais largo
+            return width * 1.20;
+        case 'diamond':
+            return width * 1.03;
+        default:
+            // Box / Square: folga lateral média de 5% sobre a largura da barra de saída
+            return width * 1.05;
+    }
 };
 
 /** Diâmetro no fundo da luz */
@@ -88,9 +102,14 @@ export function calculateDiameterBottomLuz(cylinderDiameter: number, luz: number
     return cylinderDiameter - 2 * channelDepth;
 }
 
-/** Diâmetro de trabalho */
-export function calculateWorkDiameter(cylinderDiameter: number, exitHeight: number): number {
-    return cylinderDiameter - exitHeight;
+/** Diâmetro de trabalho — Diâmetro do cilindro menos a profundidade do canal em ambos os lados.
+ *  Para gaiola Hóriz: Dtrab = Dcil - 2 × channelDepth = Dcil - (Dcil - Luz) = Luz
+ *  Portanto: Dtrab = Dcilin - (Dcilin - Luz) = Luz (para canal fechado - Box/Round)
+ *  Na prática usa-se: Dtrab = Dcilin - luz_efetiva */
+export function calculateWorkDiameter(cylinderDiameter: number, exitHeight: number, luz: number): number {
+    // Usa a luz real em vez da altura da barra de saída (correto para canais com raio)
+    const luzEfetiva = luz > 0 ? luz : exitHeight;
+    return cylinderDiameter - luzEfetiva;
 }
 
 /** Diâmetro de projeto (inclui dilatação térmica) */
@@ -134,6 +153,59 @@ export function calculateElongation(entryArea: number, exitArea: number): number
 /** Alargamento (spread) */
 export function calculateWidening(exitWidth: number, entryWidth: number): number {
     return exitWidth - entryWidth;
+}
+
+/** 
+ * Spread empírico - modelo simplificado de Wusatowski.
+ * Calcula a largura de saída da barra considerando o espalhamento lateral.
+ * Δw = C × Δh^a × (D/h_mean)^b × (w/h)^c
+ */
+export function calculateSpreadWidth(
+    entryWidth: number,
+    entryHeight: number,
+    exitHeight: number,
+    rollDiameter: number,
+    channelType: PassType
+): number {
+    const deltaH = entryHeight - exitHeight;
+    if (deltaH <= 0 || rollDiameter <= 0) return entryWidth;
+
+    const hMean = (entryHeight + exitHeight) / 2;
+    if (hMean <= 0) return entryWidth;
+
+    // Constantes empíricas (Wusatowski simplificado para aço C a quente)
+    const C = 0.35;
+    const a = 0.78;
+    const b = 0.40;
+    const c = -0.60;
+
+    let spread = C
+        * Math.pow(deltaH, a)
+        * Math.pow(rollDiameter / hMean, b)
+        * Math.pow(Math.max(entryWidth / entryHeight, 0.1), c);
+
+    // Limitar spread por tipo de passe
+    // Ovais e redondos têm contenção lateral → spread reduzido
+    switch (channelType) {
+        case 'round':
+            spread *= 0.3; // Canal circular contém fortemente
+            break;
+        case 'oval':
+        case 'swedish_oval':
+        case 'edge_oval':
+            spread *= 0.5; // Canal oval contém parcialmente
+            break;
+        case 'flat':
+            spread *= 1.2; // Mesa lisa libera mais spread
+            break;
+        case 'diamond':
+            spread *= 0.6;
+            break;
+        default:
+            break; // box/square: spread padrão
+    }
+
+    return entryWidth + spread;
 }
 
 /** Coeficiente de deformação */
@@ -217,10 +289,24 @@ export function calcMotorTorque(powerKW: number, rpmNominal: number): number {
     return (powerKW * 9.5493) / rpmNominal; // kNm
 }
 
-/** Dilatação térmica linear */
+/** Dilatação térmica linear — fórmula real: α = 1 + coeff × (T - 20) */
 export function calculateThermalDilation(temperature: number, steelType: string): number {
-    if (steelType === 'carbon') return THERMAL_EXPANSION_CARBON;
-    return 1 + THERMAL_EXPANSION_COEFF * temperature;
+    if (temperature <= 0) return THERMAL_EXPANSION_CARBON; // fallback sem temperatura
+    const coeff = steelType === 'high_alloy' ? 11e-6 : 12e-6;
+    return 1 + coeff * (temperature - 20);
+}
+
+/** Correção Luz Sem Carga → Luz sob Carga (LIC = LSC + F/K)
+ *  F = força de laminação (MN), K = constante de mola da gaiola (MN/mm)
+ *  A diferença LSC-LIC depende da deformação elástica da gaiola sob carga.
+ */
+export function calculateLuzSobCarga(
+    luzSemCarga: number,
+    rollingForce: number,
+    springConstant: number
+): number {
+    if (springConstant <= 0 || rollingForce <= 0) return luzSemCarga;
+    return luzSemCarga + (rollingForce / springConstant);
 }
 
 /** Diâmetro do canal acabador para vergalhão redondo (doc 6_diametro) */
@@ -266,7 +352,10 @@ export function createDefaultPass(id: string): PassData {
         elongation: 0, widening: 0,
         deformationCoeff: 0,
         barOccupiedArea: 0, channelArea: 0,
-        channelWidth: 0, halfWidthHeight: 0, halfBarHeight: 0,
+        channelWidth: 0,
+        // Validação e Correções
+        luzSobCarga: 0, frValidationDelta: 0, frValidationWarning: null,
+        halfWidthHeight: 0, halfBarHeight: 0,
         // Parâmetros de Passe
         reiMedioOverReiFundo: 0,
         barWidthOverChannelWidth: 0,
@@ -296,7 +385,8 @@ export function recalculatePass(
     process: ProcessData,
     passNumber: number,
     trainType: TrainType,
-    gearRatioMotor: number
+    gearRatioMotor: number,
+    springConstant: number = 5
 ): PassData {
     const p = { ...pass };
 
@@ -314,10 +404,26 @@ export function recalculatePass(
         ? calculateThermalDilation(p.temperature, 'carbon')
         : THERMAL_EXPANSION_CARBON;
 
-    // Dimensões de saída baseadas no canal
+    // Dimensões de saída baseadas no canal e orientação
     const luzEfetiva = p.luzProj > 0 ? p.luzProj : p.luz;
-    p.exitBarHeight = luzEfetiva;
-    p.exitBarWidth = p.entryBarWidth * p.wideningFactor; // Simplificação do alargamento
+
+    if (p.orientation === 'V') {
+        // Em gaiola Vertical, a Luz (Gap) atua na LARGURA física da barra
+        p.exitBarWidth = luzEfetiva;
+        // Spread na direção vertical (height) quando gaiola é V
+        p.exitBarHeight = calculateSpreadWidth(
+            p.entryBarHeight, p.entryBarWidth, luzEfetiva,
+            p.cylinderDiameter, p.channelType
+        );
+    } else {
+        // Em gaiola Horizontal (padrão), a Luz atua na ALTURA física da barra
+        p.exitBarHeight = luzEfetiva;
+        // Spread empírico na largura
+        p.exitBarWidth = calculateSpreadWidth(
+            p.entryBarWidth, p.entryBarHeight, luzEfetiva,
+            p.cylinderDiameter, p.channelType
+        );
+    }
 
     // Área de saída
     p.exitArea = calcArea(p.channelType, p.exitBarWidth, p.exitBarHeight);
@@ -343,7 +449,7 @@ export function recalculatePass(
     // Geométricos
     const channelDepth = (p.cylinderDiameter - p.luz) / 2;
     p.diameterBottomLuz = calculateDiameterBottomLuz(p.cylinderDiameter, p.luz, channelDepth);
-    p.workDiameter = calculateWorkDiameter(p.cylinderDiameter, p.exitBarHeight);
+    p.workDiameter = calculateWorkDiameter(p.cylinderDiameter, p.exitBarHeight, p.luz);
     p.projectDiameter = calculateProjectDiameter(p.workDiameter, p.thermalDilation);
     p.careerDiameter = p.cylinderDiameter;
 
@@ -375,10 +481,39 @@ export function recalculatePass(
 
     // Torque e Carga
     p.vacuumTorque = calculateVacuumTorque(p.cylinderDiameter);
-    p.loadFactor = calculateLoadFactor(passNumber, trainType);
+
+    // Fator de carga: torque necessário / torque médio de referência do trem
+    // Torque necessário ≈ F × R_trabalho (MN × m/2 = MNm = 1000 kNm)
+    const R_work = p.workDiameter > 0 ? (p.workDiameter / 2) / 1000 : 0.25; // m
+    const torqueNecessario = p.rollingForce * R_work * 1000; // kNm
+    const torqueRef = trainType === 'desbaste' ? 12.0
+        : trainType === 'intermediario' ? 5.0 : 2.5; // kNm de referência por trem
+    p.loadFactor = torqueRef > 0 ? Math.min(torqueNecessario / (torqueRef * 100), 1.0) : 0;
 
     // Perímetro
     p.perimeter = calcPerimeter(p.channelType, p.exitBarWidth, p.exitBarHeight);
+
+    // Correção LSC → LIC (Luz sob carga)
+    if (p.importedLuzSemCarga != null && p.importedLuzSemCarga > 0) {
+        p.luzSobCarga = calculateLuzSobCarga(
+            p.importedLuzSemCarga, p.rollingForce, springConstant
+        );
+    } else {
+        p.luzSobCarga = p.luz;
+    }
+
+    // Validação cruzada: FR calculado vs FR importado
+    if (p.importedFr != null && p.importedFr > 0) {
+        p.frValidationDelta = p.reduction - p.importedFr;
+        if (Math.abs(p.frValidationDelta) > 2) {
+            p.frValidationWarning = `FR calculado (${p.reduction.toFixed(1)}%) difere do plano (${p.importedFr.toFixed(1)}%) em ${Math.abs(p.frValidationDelta).toFixed(1)}%`;
+        } else {
+            p.frValidationWarning = null;
+        }
+    } else {
+        p.frValidationDelta = 0;
+        p.frValidationWarning = null;
+    }
 
     // Tempo até próx. passe
     if (p.exitSpeed > 0 && p.distanceNextPass > 0) {
@@ -399,56 +534,71 @@ export function recalculateAllPasses(
     let prevWidth = rawMaterial.width;
     let prevHeight = rawMaterial.height;
 
-    // Se billet for quadrado
-    if (rawMaterial.type === 'billet') {
-        prevArea = rawMaterial.width * rawMaterial.height;
-    }
-
     // Tipo anterior inicial
-    let prevType: PassType | 'billet' = rawMaterial.type;
+    let absoluteIndex = 0;
 
     return passes.map(passConf => {
-        // Encontra motor correspondente
+        absoluteIndex++;
+
+        // Determina orientação da gaiola atual.
+        // Override manual tem prioridade; caso contrário usa alternância padrão:
+        // Passes ÍMPARES = Horizontal (H), passes PARES = Vertical (V).
+        // Isso corresponde ao padrão oval-redondo da maioria dos laminadores de barras.
+        let currentOrientation: 'H' | 'V' = 'H';
+        if (passConf.data.orientation) {
+            currentOrientation = passConf.data.orientation;
+        } else {
+            currentOrientation = (absoluteIndex % 2 === 0) ? 'V' : 'H';
+        }
+
         const motor = motors.find(m => m.trainType === passConf.trainType);
         const gearRatio = motor ? motor.gearRatio : 1;
-        const currentType = passConf.data.channelType;
 
-        // Lógica de Vireador (Twist 90º) Automático
-        // Se a barra anterior for "achatada" (Oval/Flat) e entrar num perfil fechado (Redondo/Quadrado/Losango/Oval),
-        // geralmente vira-se 90 graus para atacar a altura menor.
-        // Regra simplificada: Se anterior for Oval/Flat e atual for Redondo/Quadrado/Diamond/Oval, inverte W e H.
-        let inputWidth = prevWidth;
-        let inputHeight = prevHeight;
+        // --- DELEGA PARA O MOTOR v2.0 ---
+        // Tratamos a rotação 90 graus se for V
+        let inputW = prevWidth;
+        let inputH = prevHeight;
 
-        // Se Oval -> Redondo/Quadrado/Diamond/Oval, vira 90 graus
-        if ((prevType === 'oval' || prevType === 'flat') &&
-            ['round', 'square', 'diamond', 'oval'].includes(currentType)) {
-            // Inverte W e H (Vireador)
-            inputWidth = prevHeight;
-            inputHeight = prevWidth;
-        }
-        // Se Diamond -> Square, vira também (ataca arestas opostas)
-        if (prevType === 'diamond' && currentType === 'square') {
-            inputWidth = prevHeight;
-            inputHeight = prevWidth;
+        // Se for V, o que era largura vira altura para o cálculo do GAP
+        if (currentOrientation === 'V') {
+            inputW = prevHeight;
+            inputH = prevWidth;
         }
 
-        const newData = recalculatePass(
-            passConf.data,
+        const calculatedData = recalculatePassV2(
+            { ...passConf.data, orientation: currentOrientation },
             prevArea,
-            inputWidth, // Usa dimensões rotacionadas se aplicável
-            inputHeight,
+            inputW,
+            inputH,
             process,
             passConf.passNumber,
             passConf.trainType,
             gearRatio
         );
 
+        // Ajusta a saída para o sistema de coordenadas universal (Sempre deitado)
+        let finalExitW = calculatedData.exitBarWidth;
+        let finalExitH = calculatedData.exitBarHeight;
+
+        if (currentOrientation === 'V') {
+            // Inverte de volta para manter o padrão "barra deitada" no visualizador
+            // Mas somente se a altura calculada (gap) for maior que a largura (spread)
+            if (calculatedData.exitBarHeight > calculatedData.exitBarWidth) {
+                finalExitW = calculatedData.exitBarHeight;
+                finalExitH = calculatedData.exitBarWidth;
+            }
+        }
+
+        const newData: PassData = {
+            ...calculatedData,
+            exitBarWidth: finalExitW,
+            exitBarHeight: finalExitH
+        };
+
         // Atualiza para o próximo loop
         prevArea = newData.exitArea;
         prevWidth = newData.exitBarWidth;
         prevHeight = newData.exitBarHeight;
-        prevType = currentType;
 
         return { ...passConf, data: newData };
     });

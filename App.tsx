@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import {
   Flame, Zap, Boxes, Clock, Activity, CheckCircle,
   UploadCloud, Calendar, Database, FileText, Info,
@@ -23,10 +23,13 @@ import {
   savePcpToSupabase,
   supabase
 } from './services/supabaseClient';
+import { getSyncQueue, clearSyncQueueItem, initDB } from './services/db';
 import { ScenarioComparator } from './components/ScenarioComparator';
 import { PcpDetailView } from './components/PcpDetailView';
 import { MetallicYieldSimulator } from './components/MetallicYieldSimulator';
 import { PodcastView } from './components/PodcastView';
+import { MonthlySimulator } from './components/MonthlySimulator';
+import { AnnualBudget } from './components/AnnualBudget';
 import { HRSSimulator } from './src/pages/HRSSimulator';
 import { getBudgetForDate } from './services/BudgetService';
 
@@ -321,6 +324,48 @@ const DashboardWrapper: React.FC = () => {
   const [manualAcum, setManualAcum] = useState({ producao: 0, gn: 0, ee: 0, rm: 0 });
 
   const [supabaseStatus, setSupabaseStatus] = useState<'online' | 'offline' | 'pending'>('pending');
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  // Efeito Online/Offline e Sincronização
+  useEffect(() => {
+    const processSyncQueue = async () => {
+      if (!navigator.onLine) return;
+      const queue = await getSyncQueue();
+      if (queue.length === 0) return;
+
+      console.log(`🔄 [SYNC] Processando fila offline (${queue.length} iten(s))...`);
+      for (const item of queue) {
+        try {
+          if (item.action === 'insert') {
+            await supabase.from(item.table).insert(item.data);
+          } else if (item.action === 'update') {
+            await supabase.from(item.table).upsert(item.data);
+          }
+          if (item.id) await clearSyncQueueItem(item.id);
+        } catch (err) {
+          console.error(`❌ [SYNC] Erro sincronizando item ${item.id}:`, err);
+        }
+      }
+      console.log('✅ [SYNC] Sincronização concluída com sucesso!');
+      fetchData(); // Atualiza a tela com os dados confirmados do Supabase
+    };
+
+    const handleOnline = () => {
+      setIsOffline(false);
+      processSyncQueue();
+    };
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    if (navigator.onLine) processSyncQueue();
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const getLocalDate = () => {
     const d = new Date();
@@ -579,7 +624,7 @@ const DashboardWrapper: React.FC = () => {
         }
 
         // Variáveis para acumulado
-        const corteStr = new Date(corteDate).toISOString().split('T')[0];
+        const corteStr = corteDate; // Usar a string diretamente do input, evita erro de UTC (ex: 2026-03-07 virar 06)
         const monthStart = `${corteStr.substring(0, 7)}-01`;
         let sumProd = 0;
         let sumGasRaw = 0;
@@ -631,6 +676,33 @@ const DashboardWrapper: React.FC = () => {
           console.log(`📊 [STATE] Novo manualAcum:`, newState);
           return newState;
         });
+
+        // --- CÁLCULO DE ONTEM VS HOJE ---
+        // Pega os dois últimos dias com produção
+        const validDays = [...realData]
+          .filter(r => parseFloat(r.producao_laminacao) > 0)
+          .sort((a, b) => b.data.localeCompare(a.data));
+
+        if (validDays.length >= 2) {
+          const today = validDays[0];
+          const yesterday = validDays[1];
+
+          // Yield (Rendimento)
+          // Na tabela diario_bordo_real normalmente temos 'rm_real' ou algo que nos de o rendimento?
+          // Como o DB não tem a coluna RM clara no select (*), usamos o acumulado manualAcum ou chartData depois.
+          // Mas podemos calcular o gás específico
+          const gnTodayReal = parseFloat(today.consumo_gas_tl01) || 0;
+          const prodTodayReal = parseFloat(today.producao_laminacao) || 0;
+          const gnYestReal = parseFloat(yesterday.consumo_gas_tl01) || 0;
+          const prodYestReal = parseFloat(yesterday.producao_laminacao) || 0;
+
+          const specGnToday = prodTodayReal > 0 ? (gnTodayReal * fatorAplicado) / prodTodayReal : 0;
+          const specGnYest = prodYestReal > 0 ? (gnYestReal * fatorAplicado) / prodYestReal : 0;
+
+          (window as any).__gasOntem = specGnYest;
+          (window as any).__gasHoje = specGnToday;
+        }
+
       }
     } catch (err) {
       console.warn("⚠️ [DIARIO] Erro ao buscar dados reais do Diário de Bordo:", err);
@@ -806,8 +878,8 @@ const DashboardWrapper: React.FC = () => {
   };
 
   const hybridForecast = useMemo(() => {
-    // Garante formato YYYY-MM-DD para comparação string segura (sem timezone)
-    const corteStr = new Date(corteDate).toISOString().split('T')[0];
+    // Garante formato YYYY-MM-DD para comparação string segura sem alterar o dia por causa do Timezone UTC
+    const corteStr = corteDate;
 
     // Futuro (Remaining)
     let remainingProd = 0;
@@ -923,18 +995,18 @@ const DashboardWrapper: React.FC = () => {
     let lastOrder: any = null;
 
     data.forEach(row => {
-      // Busca produção com nomes variados
-      const prod = getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'producao_planejada', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true);
+      const prod = getColumnValue(row, ['Qtde REAL (t)', 'producao_planejada', '_ai_producao'], true);
       const originalProd = getColumnValue(row, ['_original_prod'], true);
 
-      // Usando o valor já processado/ajustado (prod), que reflete a extensão até o fim do mês ou aparamento.
+      // Usando o valor já processado/ajustado (prod) para o total principal.
+      // Se houver originalProd > prod, significa que houve um corte (aparamento).
       tp += prod;
 
       if (originalProd > 0 && originalProd !== prod) {
         // Se houve aparamento (corte porque passou do mês)
         if (originalProd > prod) {
           const cutVol = originalProd - prod;
-          tcut += cutVol;
+          tcut += cutVol; // Restaurado conforme solicitado pelo usuário
         } else {
           // Se houve extensão (falta no fim do mês, então aumenta)
           const addedVol = prod - originalProd;
@@ -1144,6 +1216,95 @@ const DashboardWrapper: React.FC = () => {
 
   const calculatedTotals = useMemo(() => calculateMetrics(pcpData), [pcpData, calculateMetrics]);
   const secondaryTotals = useMemo(() => calculateMetrics(pcpSecondary), [pcpSecondary, calculateMetrics]);
+
+  // Envia o valor exato do card PRODUCAO TOTAL para o servidor local E persiste no Supabase
+  // para que o n8n possa ler via Supabase (confiável) ou GET /api/forecast (fallback local)
+  useEffect(() => {
+    if (calculatedTotals.totalProducao > 0) {
+      const valor = Math.round(calculatedTotals.totalProducao);
+
+      const previsaoGas = calculatedTotals.avgGas;
+      const previsaoEnergia = calculatedTotals.avgEE;
+
+      // 1. Servidor local (para leitura imediata se dashboard estiver aberto)
+      fetch('/api/forecast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          previsaoFechamento: valor,
+          previsaoGas: Number(previsaoGas.toFixed(2)),
+          previsaoEnergia: Number(previsaoEnergia.toFixed(2))
+        })
+      }).catch(() => { });
+
+      // 2. Supabase (persistente - n8n lê daqui mesmo com dashboard fechado)
+      supabase
+        .from('forecast_cache')
+        .upsert({
+          id: 'current',
+          previsao_fechamento: valor,
+          previsao_gas: Number(previsaoGas.toFixed(2)),
+          previsao_energia: Number(previsaoEnergia.toFixed(2)),
+          updated_at: new Date().toISOString()
+        })
+        .then(({ error }) => {
+          if (error) console.warn('⚠️ [FORECAST] Erro ao salvar no Supabase:', error.message);
+          else console.log(`✅ [FORECAST] Valor ${valor}t (GN: ${previsaoGas.toFixed(2)}, EE: ${previsaoEnergia.toFixed(2)}) salvo no Supabase forecast_cache`);
+        });
+    }
+  }, [calculatedTotals.totalProducao, manualAcum, hybridForecast]);
+
+  // --- Ontem vs Hoje & Preditor ---
+  const { contextData, predictorNotice } = useMemo(() => {
+    let gasVarHtml = null;
+    let rmVarHtml = null;
+    let premiumGoalReached = false;
+    let notice = "";
+
+    // Como diarioBordoData guarda o real e chartData também processa isso
+    // Vamos usar (window as any).__gasOntem gerado no fetchData para o Gás
+    const gasHoje = (window as any).__gasHoje || 0;
+    const gasOntem = (window as any).__gasOntem || 0;
+
+    if (gasOntem > 0 && gasHoje > 0) {
+      const p = ((gasHoje - gasOntem) / gasOntem) * 100;
+      if (p < 0) {
+        gasVarHtml = { text: `🟢 ${Math.abs(p).toFixed(1)}% melhor que média de ontem`, color: 'text-emerald-500' };
+      } else if (p > 0) {
+        gasVarHtml = { text: `🔴 ${Math.abs(p).toFixed(1)}% acima da média de ontem`, color: 'text-rose-500' };
+      }
+    }
+
+    // Para rendimento, analisamos o fechamento atual vs meta
+    if (calculatedTotals.metaMedRM > 0 && calculatedTotals.avgRM >= calculatedTotals.metaMedRM) {
+      premiumGoalReached = true;
+      rmVarHtml = { text: `🟢 Atingiu a Meta Premium Corporativa`, color: 'text-emerald-500' };
+    } else if (calculatedTotals.metaMedRM > 0) {
+      const needed = calculatedTotals.metaMedRM - calculatedTotals.avgRM;
+      rmVarHtml = { text: `🔴 -${needed.toFixed(1)}% abaixo da meta estabelecida`, color: 'text-amber-500' };
+    }
+
+    // Preditor
+    if (premiumGoalReached) {
+      notice = "Aviso do Preditor: O rendimento metálico atual superou a meta premium corporativa! Excelente performance.";
+      if (gasVarHtml && gasVarHtml.text.includes('🔴')) {
+        notice += " No entanto, atenção ao consumo térmico que está subindo em relação a ontem.";
+      }
+    } else {
+      if (gasVarHtml && gasVarHtml.text.includes('🟢')) {
+        notice = "Aviso do Preditor: O consumo de gás melhorou em relação a ontem! Mantenha a estabilidade térmica.";
+      } else if (gasVarHtml && gasVarHtml.text.includes('🔴')) {
+        notice = "Aviso do Preditor: O consumo térmico está elevado hoje. Considere revisar configurações de queima do forno.";
+      } else {
+        notice = "Aviso do Preditor: Operação estável. Foco em manter o ritmo de laminação para bater a meta semanal.";
+      }
+    }
+
+    return {
+      contextData: { gasVar: gasVarHtml, rmVar: rmVarHtml, premiumGoalReached },
+      predictorNotice: notice
+    };
+  }, [calculatedTotals, diarioBordoData]);
 
   const chartData = useMemo(() => {
     // Função auxiliar para converter serial Excel em Data
@@ -1381,268 +1542,297 @@ const DashboardWrapper: React.FC = () => {
           console.log(`Total de linhas brutas: ${rawArray.length}`);
 
           // Encontra a linha do cabeçalho (linha que contém "OP")
-          let headerRowIndex = 0;
-          for (let i = 0; i < Math.min(10, rawArray.length); i++) {
+          let headerRowIndex = -1;
+          for (let i = 0; i < Math.min(25, rawArray.length); i++) {
             const row = rawArray[i];
-            if (row && row.some((cell: any) => String(cell).toUpperCase() === 'OP')) {
+            if (row && Array.isArray(row) && row.some((cell: any) => {
+              const val = String(cell || '').toUpperCase().trim();
+              return val === 'OP' || val === 'ORDEM' || val === 'ORDEM DE PRODUCAO';
+            })) {
               headerRowIndex = i;
-              console.log(`Cabeçalho encontrado na linha ${i + 1}`);
               break;
             }
           }
 
-          // Extrai cabeçalhos
-          const headers = rawArray[headerRowIndex].map((h: any, idx: number) => {
-            const header = String(h || '').trim();
-            return header || `Col_${idx}`;
-          });
+          if (headerRowIndex === -1) {
+            console.warn("Cabeçalho 'OP' não encontrado nas primeiras 25 linhas. Usando linha 0 como fallback.");
+            headerRowIndex = 0;
+          }
 
-          console.log("Cabeçalhos encontrados:", headers.filter(h => !h.startsWith('Col_')));
+          const headers = rawArray[headerRowIndex].map((h: any, idx: number) => String(h || '').trim() || `Col_${idx}`);
+          console.log("Cabeçalhos detectados no Simulador:", headers);
 
-
-          // Função auxiliar para converter serial do Excel para Date
-          const excelSerialToDate = (serial: number): Date => {
-            const utcDays = Math.floor(serial) - 25569;
-            const utcValue = utcDays * 86400 * 1000;
-            const date = new Date(utcValue);
-
-            const fractionalDay = serial - Math.floor(serial);
-            const totalSeconds = Math.round(fractionalDay * 86400);
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
-
-            date.setUTCHours(hours, minutes, seconds);
-            return date;
-          };
-
-          // Converte linhas de dados em objetos
           const dataRows = rawArray.slice(headerRowIndex + 1).map((row: any[]) => {
             const obj: any = {};
             headers.forEach((header: string, idx: number) => {
-              // Ignora colunas sem nome real
-              if (header && !header.startsWith('Col_')) {
-                obj[header] = row[idx] !== undefined && row[idx] !== null ? row[idx] : '';
-              }
+              if (header && !header.startsWith('Col_')) obj[header] = row[idx] ?? '';
             });
             return obj;
           });
 
-          // Filtra linhas vazias e totais
           const processed = dataRows.filter((row: any) => {
             const values = Object.values(row);
-            const hasData = values.some(val => val !== null && val !== undefined && String(val).trim() !== '');
-            const isNotTotal = !values.some(val =>
-              String(val).toLowerCase().includes('total') ||
-              String(val).toLowerCase().includes('soma')
-            );
-            return hasData && isNotTotal;
+            return values.some(v => String(v).trim() !== '') &&
+              !values.some(v => String(v).toLowerCase().includes('total'));
           });
+          if (type === 'pcp_sec') {
+            setPcpSecondary(processed);
+            setShowComparator(true);
+          } else { // Original PCP logic
+            // Função auxiliar para converter serial do Excel para Date
+            const excelSerialToDate = (serial: number): Date => {
+              const utcDays = Math.floor(serial) - 25569;
+              const utcValue = utcDays * 86400 * 1000;
+              const date = new Date(utcValue);
 
-          // Detecta o mês de referência analisando todas as datas (moda)
-          let refMonth = -1;
-          let refYear = -1;
-          const inicioCol = headers.find(h => h.toLowerCase().includes('início') || h.toLowerCase().includes('inicio'));
+              const fractionalDay = serial - Math.floor(serial);
+              const totalSeconds = Math.round(fractionalDay * 86400);
+              const hours = Math.floor(totalSeconds / 3600);
+              const minutes = Math.floor((totalSeconds % 3600) / 60);
+              const seconds = totalSeconds % 60;
 
-          if (inicioCol && processed.length > 0) {
-            const monthCounts: Record<string, number> = {};
+              date.setUTCHours(hours, minutes, seconds);
+              return date;
+            };
 
-            processed.forEach((row: any) => {
-              const inicioVal = row[inicioCol];
-              if (typeof inicioVal === 'number' && inicioVal > 40000) { // > 40000 garante datas recentes (após 2009)
-                const date = excelSerialToDate(inicioVal);
-                const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
-                monthCounts[key] = (monthCounts[key] || 0) + 1;
-              }
+            // Converte linhas de dados em objetos
+            const dataRows = rawArray.slice(headerRowIndex + 1).map((row: any[]) => {
+              const obj: any = {};
+              headers.forEach((header: string, idx: number) => {
+                // Ignora colunas sem nome real
+                if (header && !header.startsWith('Col_')) {
+                  obj[header] = row[idx] !== undefined && row[idx] !== null ? row[idx] : '';
+                }
+              });
+              return obj;
             });
 
-            // Encontra o mês com mais registros
-            let maxCount = 0;
-            let bestMonthKey = '';
-
-            Object.entries(monthCounts).forEach(([key, count]) => {
-              if (count > maxCount) {
-                maxCount = count;
-                bestMonthKey = key;
-              }
+            // Filtra linhas vazias e totais
+            const processed = dataRows.filter((row: any) => {
+              const values = Object.values(row);
+              const hasData = values.some(val => val !== null && val !== undefined && String(val).trim() !== '');
+              const isNotTotal = !values.some(val =>
+                String(val).toLowerCase().includes('total') ||
+                String(val).toLowerCase().includes('soma')
+              );
+              return hasData && isNotTotal;
             });
 
-            if (bestMonthKey) {
-              const [yearStr, monthStr] = bestMonthKey.split('-');
-              refYear = parseInt(yearStr);
-              refMonth = parseInt(monthStr);
-              console.log(`Mês de referência detectado (moda): ${refMonth + 1}/${refYear} com ${maxCount} registros`);
+            // Detecta o mês de referência analisando todas as datas (moda)
+            let refMonth = -1;
+            let refYear = -1;
+            const inicioCol = headers.find(h => h.toLowerCase().includes('início') || h.toLowerCase().includes('inicio'));
+
+            if (inicioCol && processed.length > 0) {
+              const monthCounts: Record<string, number> = {};
+
+              processed.forEach((row: any) => {
+                const inicioVal = row[inicioCol];
+                if (typeof inicioVal === 'number' && inicioVal > 40000) { // > 40000 garante datas recentes (após 2009)
+                  const date = excelSerialToDate(inicioVal);
+                  const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+                  monthCounts[key] = (monthCounts[key] || 0) + 1;
+                }
+              });
+
+              // Encontra o mês com mais registros
+              let maxCount = 0;
+              let bestMonthKey = '';
+
+              Object.entries(monthCounts).forEach(([key, count]) => {
+                if (count > maxCount) {
+                  maxCount = count;
+                  bestMonthKey = key;
+                }
+              });
+
+              if (bestMonthKey) {
+                const [yearStr, monthStr] = bestMonthKey.split('-');
+                refYear = parseInt(yearStr);
+                refMonth = parseInt(monthStr);
+                console.log(`Mês de referência detectado (moda): ${refMonth + 1}/${refYear} com ${maxCount} registros`);
+              }
             }
-          }
 
-          // Filtra apenas dados do mês de referência
-          let filteredByMonth = processed;
-          if (refMonth >= 0 && refYear > 0 && inicioCol) {
-            // Define limites para a lógica principal
+            // Filtra apenas dados do mês de referência
+            let filteredByMonth = processed;
+
+            // Define limites para a lógica principal baseada no mês detectado
             const monthStart = new Date(Date.UTC(refYear, refMonth, 1, 0, 0, 0));
             const monthEnd = new Date(Date.UTC(refYear, refMonth + 1, 0, 23, 59, 59));
 
-            // Permite pegar ordens que começam no último dia do mês anterior (transição)
-            console.log(`Filtrando mês ${refMonth + 1}/${refYear}.`);
+            if (refMonth >= 0 && refYear > 0 && inicioCol) {
+              // Define um limite de tolerância para o início do mês (ex: 10 dias antes)
 
-            // 1. Filtra os dados
-            filteredByMonth = processed.filter((row: any) => {
-              const inicioVal = row[inicioCol];
+              // Define um limite de tolerância para o início do mês (ex: 10 dias antes)
+              // Isso garante que as "primeiras linhas" do Excel, mesmo que do fim do mês passado, sejam incluídas.
+              const earlyGracePeriod = new Date(monthStart);
+              earlyGracePeriod.setUTCDate(earlyGracePeriod.getUTCDate() - 10);
 
-              // Mantém setups/paradas sem data se forem relevantes
-              if (typeof inicioVal !== 'number' || inicioVal <= 40000) {
-                const desc = String(row['Descrição'] || row['Cart. Futura'] || '').toLowerCase();
-                const isRelevant = desc.includes('setup') || desc.includes('troca') || desc.includes('preventiva');
-                const op = String(row['OP'] || '');
-                if (op === 'M03' || op === 'OP' || op === '-') return false;
-                return isRelevant;
+              // 1. Filtra os dados
+              filteredByMonth = processed.filter((row: any) => {
+                const inicioVal = row[inicioCol];
+                const terminoColLocal = headers.find(h => h.toLowerCase().includes('término') || h.toLowerCase().includes('termino'));
+                const dTermino = typeof row[terminoColLocal] === 'number' ? excelSerialToDate(row[terminoColLocal]) : null;
+
+                // Mantém setups/paradas sem data se forem relevantes
+                if (typeof inicioVal !== 'number' || inicioVal <= 40000) {
+                  const desc = String(row['Descrição'] || row['Cart. Futura'] || '').toLowerCase();
+                  const isRelevant = desc.includes('setup') || desc.includes('troca') || desc.includes('preventiva');
+                  const op = String(row['OP'] || '');
+                  if (op === 'M03' || op === 'OP' || op === '-') return false;
+                  return isRelevant;
+                }
+
+                const date = excelSerialToDate(inicioVal);
+
+                // CRITÉRIO DE INCLUSÃO RELAXADO:
+                // 1. Começa dentro do mês
+                const startsInMonth = date >= monthStart && date <= monthEnd;
+                // 2. Começou antes mas terminou dentro (transição)
+                const overlapsMonthStart = date < monthStart && dTermino && dTermino > monthStart;
+                // 3. É uma das "primeiras linhas" do arquivo (iniciou nos últimos 10 dias do mês anterior)
+                const isInitialTransition = date >= earlyGracePeriod && date < monthStart;
+
+                return startsInMonth || overlapsMonthStart || isInitialTransition;
+              });
+
+              // 2. Ordena por data
+              filteredByMonth.sort((a, b) => {
+                const valA = typeof a[inicioCol] === 'number' ? a[inicioCol] : 0;
+                const valB = typeof b[inicioCol] === 'number' ? b[inicioCol] : 0;
+                return valA - valB;
+              });
+
+              // 2A. Decisão Técnica: Inclusão INTEGRAL da primeira ordem.
+              // Removido qualquer trimming que ajustasse proporcionalmente a produção da primeira ordem.
+              console.log("Incluindo primeira ordem integralmente (inclusive se iniciada no mês anterior).");
+
+              // 3. Extender a última ordem para o final do mês
+              // Encontra o índice da última ordem que tem data válida (ignora setups finais sem data)
+              let lastOrderIndex = -1;
+              for (let i = filteredByMonth.length - 1; i >= 0; i--) {
+                const row = filteredByMonth[i];
+                if (typeof row[inicioCol] === 'number' && row[inicioCol] > 40000) {
+                  lastOrderIndex = i;
+                  break;
+                }
               }
 
-              const date = excelSerialToDate(inicioVal);
+              if (lastOrderIndex >= 0) {
+                const lastRow = filteredByMonth[lastOrderIndex];
+                const terminoCol = headers.find(h => h.toLowerCase().includes('término') || h.toLowerCase().includes('termino'));
 
-              // Aceita se for dentro do mês inteiro
-              if (date >= monthStart && date <= monthEnd) return true;
+                if (terminoCol) {
+                  console.log("Estendendo última ordem para o fim do mês...");
+                  // Calcula o serial do Excel para o fim do mês (Data JS -> Excel Serial)
+                  // Fim do mês ja calculado em monthEnd
+                  // Excel Serial = (UnixTimestamp / 86400000) + 25569
+                  const endOfMonthSerial = (monthEnd.getTime() / 86400000) + 25569;
 
-              return false;
-            });
+                  // --- Lógica de preenchimento (Gap Filling) e Corte (Trimming): Proporcional ---
+                  const originalEndSerial = lastRow[terminoCol];
+                  const originalStartSerial = lastRow[inicioCol];
 
-            // 2. Ordena por data para garantir que achamos a última corretamente
-            filteredByMonth.sort((a, b) => {
-              const valA = typeof a[inicioCol] === 'number' ? a[inicioCol] : 0;
-              const valB = typeof b[inicioCol] === 'number' ? b[inicioCol] : 0;
-              return valA - valB;
-            });
+                  if (typeof originalEndSerial === 'number' && typeof originalStartSerial === 'number' && endOfMonthSerial !== originalEndSerial) {
+                    const originalDuration = originalEndSerial - originalStartSerial;
+                    const newDuration = endOfMonthSerial - originalStartSerial;
 
-            // 3. Extender a última ordem para o final do mês
-            // Encontra o índice da última ordem que tem data válida (ignora setups finais sem data)
-            let lastOrderIndex = -1;
-            for (let i = filteredByMonth.length - 1; i >= 0; i--) {
-              const row = filteredByMonth[i];
-              if (typeof row[inicioCol] === 'number' && row[inicioCol] > 40000) {
-                lastOrderIndex = i;
-                break;
-              }
-            }
+                    if (originalDuration > 0 && newDuration > 0) {
+                      const ratio = newDuration / originalDuration;
 
-            if (lastOrderIndex >= 0) {
-              const lastRow = filteredByMonth[lastOrderIndex];
-              const terminoCol = headers.find(h => h.toLowerCase().includes('término') || h.toLowerCase().includes('termino'));
+                      // Encontra a coluna de Produção original
+                      const prodCol = headers.find(h =>
+                        h === 'Qtde REAL (t)' || h === 'Prod. Acab. (t)' ||
+                        h.includes('Producao') || h.includes('Produção') || h.includes('Qtd')
+                      );
 
-              if (terminoCol) {
-                console.log("Estendendo última ordem para o fim do mês...");
-                // Calcula o serial do Excel para o fim do mês (Data JS -> Excel Serial)
-                // Fim do mês ja calculado em monthEnd
-                // Excel Serial = (UnixTimestamp / 86400000) + 25569
-                const endOfMonthSerial = (monthEnd.getTime() / 86400000) + 25569;
+                      if (prodCol) {
+                        const currentProd = cleanNumber(lastRow[prodCol]);
 
-                // --- Lógica de preenchimento (Gap Filling) e Corte (Trimming): Proporcional ---
-                const originalEndSerial = lastRow[terminoCol];
-                const originalStartSerial = lastRow[inicioCol];
+                        // Desativado a pedido do usuário: manter a Qtde REAL idêntica ao arquivo original
+                        // const newProd = currentProd * ratio;
+                        const appliedRatio = 1.0;
+                        const newProd = currentProd; // Mantém original
 
-                if (typeof originalEndSerial === 'number' && typeof originalStartSerial === 'number' && endOfMonthSerial !== originalEndSerial) {
-                  const originalDuration = originalEndSerial - originalStartSerial;
-                  const newDuration = endOfMonthSerial - originalStartSerial;
+                        const op = lastRow['OP'] || lastRow['Ordem'] || "N/A";
+                        const action = ratio > 1 ? "Estendendo" : "Aparando";
+                        const debugInfo = ` | Ajuste Desativado (Original: ${currentProd.toFixed(1)})`;
+                        (window as any).__GAP_DEBUG = debugInfo;
 
-                  if (originalDuration > 0 && newDuration > 0) {
-                    const ratio = newDuration / originalDuration;
+                        console.log(`${action} última ordem de ${(originalDuration * 24).toFixed(2)}h para ${(newDuration * 24).toFixed(2)}h.`);
+                        console.log(`Produção mantida em ${currentProd.toFixed(1)} (Fator seria: ${ratio.toFixed(4)}, Aplicado: ${appliedRatio.toFixed(4)})`);
 
-                    // Encontra a coluna de Produção original
-                    const prodCol = headers.find(h =>
-                      h === 'Qtde REAL (t)' || h === 'Prod. Acab. (t)' ||
-                      h.includes('Producao') || h.includes('Produção') || h.includes('Qtd')
-                    );
+                        // Armazenar os valores originais para exibição no frontend (dashboard)
+                        lastRow['_original_prod'] = currentProd;
+                        lastRow['_original_end_serial'] = originalEndSerial;
+                        lastRow['_trim_ratio'] = appliedRatio;
 
-                    if (prodCol) {
-                      const currentProd = cleanNumber(lastRow[prodCol]);
-
-                      // Desativado a pedido do usuário: manter a Qtde REAL idêntica ao arquivo original
-                      // const newProd = currentProd * ratio;
-                      const appliedRatio = 1.0;
-                      const newProd = currentProd; // Mantém original
-
-                      const op = lastRow['OP'] || lastRow['Ordem'] || "N/A";
-                      const action = ratio > 1 ? "Estendendo" : "Aparando";
-                      const debugInfo = ` | Ajuste Desativado (Original: ${currentProd.toFixed(1)})`;
-                      (window as any).__GAP_DEBUG = debugInfo;
-
-                      console.log(`${action} última ordem de ${(originalDuration * 24).toFixed(2)}h para ${(newDuration * 24).toFixed(2)}h.`);
-                      console.log(`Produção mantida em ${currentProd.toFixed(1)} (Fator seria: ${ratio.toFixed(4)}, Aplicado: ${appliedRatio.toFixed(4)})`);
-
-                      // Armazenar os valores originais para exibição no frontend (dashboard)
-                      lastRow['_original_prod'] = currentProd;
-                      lastRow['_original_end_serial'] = originalEndSerial;
-                      lastRow['_trim_ratio'] = appliedRatio;
-
-                      lastRow[prodCol] = newProd;
+                        lastRow[prodCol] = newProd;
+                      }
                     }
+                  } else if (typeof originalEndSerial !== 'number' || typeof originalStartSerial !== 'number') {
+                    console.warn("Ajuste ignorado: Data de início ou fim original inválida.");
                   }
-                } else if (typeof originalEndSerial !== 'number' || typeof originalStartSerial !== 'number') {
-                  console.warn("Ajuste ignorado: Data de início ou fim original inválida.");
+
+                  // Atualiza a coluna de término e término final
+                  lastRow[terminoCol] = endOfMonthSerial;
+
+                  const terminoFinalCol = headers.find(h => h.toLowerCase().includes('final'));
+                  if (terminoFinalCol) {
+                    lastRow[terminoFinalCol] = endOfMonthSerial;
+                  }
+
+                  // Atualiza no array
+                  filteredByMonth[lastOrderIndex] = lastRow;
                 }
-
-                // Atualiza a coluna de término e término final
-                lastRow[terminoCol] = endOfMonthSerial;
-
-                const terminoFinalCol = headers.find(h => h.toLowerCase().includes('final'));
-                if (terminoFinalCol) {
-                  lastRow[terminoFinalCol] = endOfMonthSerial;
-                }
-
-                // Atualiza no array
-                filteredByMonth[lastOrderIndex] = lastRow;
               }
+
+              console.log(`Linhas finais: ${filteredByMonth.length}`);
             }
 
-            console.log(`Linhas finais: ${filteredByMonth.length}`);
-          }
+            if (type === 'pcp') {
+              setPcpData(filteredByMonth);
 
-          console.log(`Linhas processadas: ${filteredByMonth.length}`);
-          if (filteredByMonth.length > 0) {
-            console.log("Colunas finais:", Object.keys(filteredByMonth[0]));
-            console.log("Primeira linha:", filteredByMonth[0]);
-          }
+              if (filteredByMonth.length > 0) {
+                let msg = `Arquivo carregado! ${filteredByMonth.length} registros. Sincronizando com banco...`;
+                if ((window as any).__GAP_DEBUG) {
+                  msg += (window as any).__GAP_DEBUG;
+                }
+                setSuccessMsg(msg);
 
-          if (type === 'pcp') {
-            setPcpData(filteredByMonth);
+                const normalizedPcp = filteredByMonth.map(row => ({
+                  sap: String(getColumnValue(row, ['_ai_sap', 'Código SAP', 'Código SAP2', 'SAP', 'Codigo SAP2'], false) || "").trim(),
+                  op: String(getColumnValue(row, ['OP', 'Ordem'], false) || "").trim(),
+                  descricao: String(getColumnValue(row, ['Descrição', 'Descricao'], false) || "").trim(),
+                  bitola: String(getColumnValue(row, ['Bitola', 'BITOLA', 'Dimensão'], false) || "").trim(),
+                  inicio: getRowDateStr(getColumnValue(row, ['_ai_data', 'Início', 'Inicio', 'Data', 'Data Início'], false)),
+                  producao_planejada: getColumnValue(row, ['Qtde REAL (t)', 'producao_planejada', '_ai_producao'], true),
+                  setup: getColumnValue(row, ['_ai_setup', 'Setup'], true),
 
-            if (filteredByMonth.length > 0) {
-              let msg = `Arquivo carregado! ${filteredByMonth.length} registros. Sincronizando com banco...`;
-              if ((window as any).__GAP_DEBUG) {
-                msg += (window as any).__GAP_DEBUG;
+                  // --- Metadados e Ajustes Especiais ---
+                  _original_prod: row['_original_prod'] || null,
+                  _original_end_date: row['_original_end_serial'] ? excelSerialToDate(row['_original_end_serial']).toISOString().split('T')[0] : null,
+                  _trim_ratio: row['_trim_ratio'] || null,
+
+                  data_sincronizacao: new Date().toISOString()
+                }));
+
+                savePcpToSupabase(normalizedPcp)
+                  .then(() => {
+                    setSuccessMsg(`Sincronização concluída! ${filteredByMonth.length} registros salvos no Supabase.`);
+                    setCurrentView('pcp_details');
+                    navigate('/');
+                  })
+                  .catch(err => {
+                    console.error("Erro ao sincronizar PCP:", err);
+                    setSuccessMsg(`Dados carregados localmente, mas erro ao salvar no banco: ${err.message}`);
+                  });
               }
-              setSuccessMsg(msg);
-
-              const normalizedPcp = filteredByMonth.map(row => ({
-                sap: String(getColumnValue(row, ['_ai_sap', 'Código SAP', 'Código SAP2', 'SAP', 'Codigo SAP2'], false) || "").trim(),
-                op: String(getColumnValue(row, ['OP', 'Ordem'], false) || "").trim(),
-                descricao: String(getColumnValue(row, ['Descrição', 'Descricao'], false) || "").trim(),
-                bitola: String(getColumnValue(row, ['Bitola', 'BITOLA', 'Dimensão'], false) || "").trim(),
-                inicio: getRowDateStr(getColumnValue(row, ['_ai_data', 'Início', 'Inicio', 'Data', 'Data Início'], false)),
-                producao_planejada: getColumnValue(row, ['Qtde REAL (t)', '_ai_producao', 'Prod. Acab. (t)', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true),
-                setup: getColumnValue(row, ['_ai_setup', 'Setup'], true),
-
-                // --- Metadados e Ajustes Especiais ---
-                _original_prod: row['_original_prod'] || null,
-                _original_end_date: row['_original_end_serial'] ? excelSerialToDate(row['_original_end_serial']).toISOString().split('T')[0] : null,
-                _trim_ratio: row['_trim_ratio'] || null,
-
-                data_sincronizacao: new Date().toISOString()
-              }));
-
-              savePcpToSupabase(normalizedPcp)
-                .then(() => {
-                  setSuccessMsg(`Sincronização concluída! ${filteredByMonth.length} registros salvos no Supabase.`);
-                  setCurrentView('pcp_details');
-                  navigate('/');
-                })
-                .catch(err => {
-                  console.error("Erro ao sincronizar PCP:", err);
-                  setSuccessMsg(`Dados carregados localmente, mas erro ao salvar no banco: ${err.message}`);
-                });
+            } else {
+              setPcpSecondary(processed);
+              setShowComparator(true);
             }
-          } else {
-            setPcpSecondary(processed);
-            setShowComparator(true);
           }
         } else {
           // Processamento e Upload de Metas para o Supabase
@@ -1650,7 +1840,6 @@ const DashboardWrapper: React.FC = () => {
           const rawMetas = XLSX.utils.sheet_to_json(worksheet);
           console.log("Metas raw carregadas:", rawMetas);
 
-          // Normaliza os dados para o formato esperado pelo banco
           // Normaliza os dados para o formato esperado pelo banco
           const normalizedMetas = rawMetas.map((row: any) => {
             // Helper para busca fuzzy se a busca exata falhar
@@ -1725,7 +1914,7 @@ const DashboardWrapper: React.FC = () => {
       }
     };
     reader.readAsArrayBuffer(file);
-  }, [metaData, navigate]);
+  }, [metaData, navigate, pcpData]);
 
   // --- Lógica PWA: Instalação ---
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -1833,18 +2022,25 @@ const DashboardWrapper: React.FC = () => {
     return { healthScore: Math.floor(Math.max(0, score)), healthIssues: issues };
   }, [pcpData, missingSaps]);
 
-  const handleToggleView = (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs') => {
-    if (view === 'hrs') {
-      navigate('/simulador-hrs');
-      return;
-    }
+  const handleToggleView = (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs' | 'budget') => {
     setCurrentView(view as any);
-    navigate('/'); // Garante que volta para a rota base ao clicar nos botões do header
+    switch (view) {
+      case 'budget': navigate('/orcamento'); break;
+      case 'hrs': navigate('/simulador-hrs'); break;
+      case 'simulator': navigate('/simulador'); break;
+      case 'pcp_details': navigate('/pcp-detalhes'); break;
+      case 'metallic_yield': navigate('/rendimento'); break;
+      case 'podcast': navigate('/podcast'); break;
+      case 'forecast': navigate('/previsao'); break;
+      default: navigate('/'); break;
+    }
   };
 
   const DashboardContentValues = () => (
     <>
       {successMsg && <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl flex items-center gap-3 mb-8 text-emerald-800 font-bold"><CheckCircle size={20} /> {successMsg}</div>}
+
+      {/* --- AVISO DO PREDITOR REMOVIDO POR SOLICITAÇÃO --- */}
 
       {/* Painel de IA Gemini (Aparece sob demanda) */}
       {(isAnalysing || aiReport) && (
@@ -1886,7 +2082,7 @@ const DashboardWrapper: React.FC = () => {
         </div>
       )}
 
-      {currentView === 'forecast' ? (
+      {effectiveView === 'forecast' ? (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="glass rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-8 animate-float">
             <div className="flex flex-wrap items-center gap-6">
@@ -2035,9 +2231,9 @@ const DashboardWrapper: React.FC = () => {
             />
           </div>
         </div>
-      ) : currentView === 'simulator' ? (
+      ) : effectiveView === 'simulator' ? (
         <ScenarioSimulator baseData={calculatedTotals} costs={costs} onClose={() => handleToggleView('dashboard')} />
-      ) : currentView === 'pcp_details' ? (
+      ) : effectiveView === 'pcp_details' ? (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
           <PcpDetailView
             data={pcpData}
@@ -2047,18 +2243,29 @@ const DashboardWrapper: React.FC = () => {
             metasMap={metasMap}
           />
         </div>
-      ) : currentView === 'metallic_yield' ? (
+      ) : effectiveView === 'metallic_yield' ? (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 overflow-auto">
           <MetallicYieldSimulator />
         </div>
-      ) : currentView === 'podcast' ? (
+      ) : effectiveView === 'podcast' ? (
         <PodcastView />
       ) : (
         <div className="space-y-10 animate-in fade-in duration-700">
           <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden mb-10">
             <div className="p-8 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-3"><div className="p-2 bg-slate-900 rounded-lg text-white"><Info size={20} /></div><h2 className="text-xl font-black tracking-tight text-slate-800 uppercase">Contexto Operacional</h2></div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100"><div className={`w-2 h-2 rounded-full ${supabaseStatus === 'online' ? 'bg-emerald-500' : 'bg-rose-500'}`} /><span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Database: {supabaseStatus}</span></div>
+              <div className="flex items-center gap-4">
+                {isOffline && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-50 rounded-full border border-rose-200 shadow-sm animate-pulse">
+                    <div className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span className="text-[10px] font-black uppercase text-rose-700 tracking-widest">Modo Offline (PWA)</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
+                  <div className={`w-2 h-2 rounded-full ${supabaseStatus === 'online' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Database: {supabaseStatus}</span>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-50">
               <div className="p-8"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Mês de Referência</span><div className="flex items-center gap-2"><Calendar size={18} className="text-blue-500" /><span className="text-lg font-black text-slate-800">{referenceMonth}</span></div></div>
@@ -2103,33 +2310,33 @@ const DashboardWrapper: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-12">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-12">
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Produção</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-white">{monthlyBudget.producao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      <span className="text-sm font-bold text-slate-400">t</span>
+                    <div className="flex items-baseline gap-1 whitespace-nowrap">
+                      <span className="text-2xl md:text-3xl font-black text-white">{monthlyBudget.producao.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                      <span className="text-xs md:text-sm font-bold text-slate-400">t</span>
                     </div>
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Gás Natural</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-orange-400">{monthlyBudget.gas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      <span className="text-sm font-bold text-slate-400">m³/t</span>
+                    <div className="flex items-baseline gap-1 whitespace-nowrap">
+                      <span className="text-2xl md:text-3xl font-black text-orange-400">{monthlyBudget.gas.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-xs md:text-sm font-bold text-slate-400">m³/t</span>
                     </div>
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Energia (EE)</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-amber-400">{monthlyBudget.energia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      <span className="text-sm font-bold text-slate-400">kWh/t</span>
+                    <div className="flex items-baseline gap-1 whitespace-nowrap">
+                      <span className="text-2xl md:text-3xl font-black text-amber-400">{monthlyBudget.energia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-xs md:text-sm font-bold text-slate-400">kWh/t</span>
                     </div>
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Yield (RM)</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-emerald-400">{monthlyBudget.rendimento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      <span className="text-sm font-bold text-slate-400">%</span>
+                    <div className="flex items-baseline gap-1 whitespace-nowrap">
+                      <span className="text-2xl md:text-3xl font-black text-emerald-400">{monthlyBudget.rendimento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-xs md:text-sm font-bold text-slate-400">%</span>
                     </div>
                   </div>
                 </div>
@@ -2197,7 +2404,15 @@ const DashboardWrapper: React.FC = () => {
                 color: "text-amber-600"
               }}
             />
-            <MetricCard title="Rendimento Med." value={calculatedTotals.avgRM.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="%" meta={monthlyBudget?.rendimento} icon={<Percent className="text-emerald-600" />} color="text-emerald-600" helpText="Rendimento metálico médio esperado com base no mix de produtos planejado." />
+            <MetricCard
+              title="Rendimento Med."
+              value={calculatedTotals.avgRM.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              unit="%"
+              meta={monthlyBudget?.rendimento}
+              icon={<Percent className="text-emerald-600" />}
+              color="text-emerald-600"
+              helpText="Rendimento metálico médio esperado com base no mix de produtos planejado."
+            />
             <MetricCard title="Massa Linear" value={calculatedTotals.avgMassaLinear.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} unit="kg/m" icon={<Weight className="text-slate-800" />} color="text-slate-800" helpText="Massa linear média do mix de produtos (peso por metro)." />
             <MetricCard title="Produtividade" value={calculatedTotals.avgProd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} unit="t/h" icon={<BarChart4 className="text-purple-600" />} color="text-purple-600" helpText="Capacidade média de produção horária prevista para o mix atual." />
             <MetricCard
@@ -2375,7 +2590,20 @@ const DashboardWrapper: React.FC = () => {
   );
 
   const location = useLocation();
-  const isFullScreen = location.pathname === '/simulador-hrs';
+  const isFullScreen = location.pathname.includes('/simulador-');
+
+  // Derivar currentView da URL para garantir consistência no Android (HashRouter)
+  // Com HashRouter, useLocation().pathname retorna o caminho correto (ex: '/rendimento')
+  const urlToViewMap: Record<string, typeof currentView> = {
+    '/previsao': 'forecast',
+    '/simulador': 'simulator',
+    '/pcp-detalhes': 'pcp_details',
+    '/rendimento': 'metallic_yield',
+    '/podcast': 'podcast',
+  };
+  const viewFromUrl = urlToViewMap[location.pathname];
+  const effectiveView = viewFromUrl || currentView;
+
 
   return (
     <div
@@ -2385,7 +2613,7 @@ const DashboardWrapper: React.FC = () => {
       onTouchEnd={handleTouchEnd}
     >
       {!isFullScreen && (
-        <header className="backdrop-blur-xl bg-white/50 dark:bg-slate-900/50 border-b border-white/40 dark:border-slate-800 sticky top-0 z-50 px-8 py-4 shadow-lg">
+        <header className="backdrop-blur-xl bg-white/50 dark:bg-slate-900/50 border-b border-white/40 dark:border-slate-800 lg:sticky lg:top-0 lg:z-50 px-4 md:px-8 py-4 shadow-lg">
           <DashboardHeader
             onFileUpload={handleFileUpload} pcpLoaded={pcpData.length > 0} metasLoaded={metaData.length > 0}
             onGenerate={() => handleToggleView('forecast')} onSave={() => setSuccessMsg("Dados Salvos!")}
@@ -2451,11 +2679,17 @@ const DashboardWrapper: React.FC = () => {
         )}
         <Routes>
           <Route path="/" element={<DashboardContentValues />} />
+          <Route path="/previsao" element={<DashboardContentValues />} />
+          <Route path="/simulador-pcp-mensal" element={<MonthlySimulator metasMap={metasMap} costs={costs} onBack={() => navigate('/')} />} />
+          <Route path="/orcamento" element={<AnnualBudget onBack={() => navigate('/')} />} />
           {/* @ts-ignore */}
           <Route path="/comparator" element={<ScenarioComparator pcpA={pcpData} pcpB={pcpSecondary} onClose={() => navigate('/')} />} />
           {/* @ts-ignore */}
-          {/* @ts-ignore */}
           <Route path="/simulador-hrs" element={<HRSSimulator />} />
+          <Route path="/simulador" element={<ScenarioSimulator baseData={calculatedTotals} costs={costs} onClose={() => navigate('/')} />} />
+          <Route path="/pcp-detalhes" element={<div className="animate-in fade-in slide-in-from-bottom-4 duration-700 p-8"><PcpDetailView data={pcpData} fileName={fileName} onBack={() => navigate('/')} totals={calculatedTotals} metasMap={metasMap} /></div>} />
+          <Route path="/rendimento" element={<div className="animate-in fade-in slide-in-from-bottom-4 duration-700 overflow-auto p-8"><MetallicYieldSimulator /></div>} />
+          <Route path="/podcast" element={<div className="p-8"><PodcastView /></div>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

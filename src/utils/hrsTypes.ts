@@ -3,9 +3,20 @@
  * Mapeamento fiel ao programa original Sistema HRS v2.9
  */
 
-export type PassType = 'box' | 'oval' | 'round' | 'square' | 'diamond' | 'flat' | 'angle'; // angle = cantoneira, flat = chato, square = quadrado, diamond = losango
+export type PassType = 'box' | 'oval' | 'round' | 'square' | 'diamond' | 'flat' | 'angle' | 'edge_oval' | 'swedish_oval'; // angle = cantoneira, flat = chato, edge_oval = borda oval, swedish_oval = ovol sueco
 export type SteelType = 'carbon' | 'high_alloy';
 export type TrainType = 'desbaste' | 'intermediario' | 'acabador';
+
+// --- Importado do Plano de Câmbio ---
+export interface ImportedPassPlan {
+    passNumber: number;
+    gaiola: string;
+    luzSemCarga: number | null;
+    largura: number | null;
+    altura: number | null;
+    fr: number | null;
+    isFlat: boolean;
+}
 
 // --- Raw Material (Matéria Prima) ---
 export interface RawMaterial {
@@ -23,6 +34,7 @@ export interface ProcessData {
     thermalExpansionFactor: number; // Fator dilatação térmica (1.013 carbono)
     sampleMeasurement: number;     // Medição de amostras
     finishDiameter: number;        // Diâmetro canal acabador (mm)
+    springConstant: number;        // Constante de mola da gaiola (MN/mm) - para correção LSC→LIC
 }
 
 // --- Losses Data (Perdas) ---
@@ -52,11 +64,18 @@ export interface PassData {
     luzProj: number;                // Luz de Projeto (mm)
     radiusConcordance: number;      // Raio na concordância (mm)
     wideningFactor: number;         // Fator de Alargamento (FA)
+    orientation?: 'H' | 'V';       // Orientação da Gaiola (Horizontal/Vertical)
     cylinderDiameter: number;       // Diâmetro dos Cilindros (mm)
     temperature: number;            // Temperatura (°C)
     motorRotation: number;          // Rotação do Motor (rpm)
     distanceNextPass: number;       // Distância até o Passe Seguinte (m)
     timeNextPass: number;           // Tempo até o passe seguinte (s)
+
+    // === SEÇÃO: Importado do Plano de Câmbio ===
+    importedFr?: number | null;
+    importedLuzSemCarga?: number | null;
+    importedLargura?: number | null;
+    importedAltura?: number | null;
 
     // === SEÇÃO: Barra na Entrada (verde) ===
     entryBarWidth: number;          // Barra entrada - Largura (mm)
@@ -78,6 +97,11 @@ export interface PassData {
     barOccupiedArea: number;        // Área Ocupada da Barra (mm²)
     channelArea: number;            // Área (Ocupada) do Canal (mm²)
     channelWidth: number;           // Largura do Canal (mm)
+
+    // === SEÇÃO: Validação e Correções ===
+    luzSobCarga: number;            // Luz sob carga corrigida - LIC (mm)
+    frValidationDelta: number;      // FR calculado - FR importado (%)
+    frValidationWarning: string | null; // Alerta se |delta| > 2%
     halfWidthHeight: number;        // Altura Meia Largura (mm)
     halfBarHeight: number;          // Altura Meia Barra (mm)
 
@@ -168,4 +192,6 @@ export interface HRSContextType {
     removeBlock: (blockId: string) => void;
     recalculateAll: () => void;
     newProject: () => void;
+    importPassPlan: (plans: ImportedPassPlan[]) => void;
+    optimizeLuzForPass: (passId: string) => void;
 }

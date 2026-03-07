@@ -1,23 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Minus, Sparkles, HelpCircle } from 'lucide-react';
-import { useState } from 'react';
 
-interface Props {
+interface MetricCardProps {
   title: string;
   value: string | number;
   unit: string;
-  trend?: number;
+  trend?: 'up' | 'down' | 'neutral';
   meta?: number;
-  icon: React.ReactNode;
-  color: string;
   inverse?: boolean;
+  icon?: React.ReactNode;
+  color?: string;
+  helpText?: string;
+  onClick?: () => void;
   indicator?: {
     label: string;
     value: string;
-    color?: string;
+    color: string;
     details?: Array<{ name: string, date: string }>;
   };
-  helpText?: string;
 }
 
 // --- Componente de Tooltip Elegante ---
@@ -42,16 +42,28 @@ const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, icon, color, inverse = false, indicator, helpText }) => {
+export const MetricCard: React.FC<MetricCardProps> = ({
+  title,
+  value,
+  unit,
+  trend,
+  meta,
+  inverse = false,
+  icon,
+  color = "text-blue-500",
+  helpText,
+  onClick,
+  indicator
+}) => {
   let deviation = 0;
   let isGood = false;
   let showDeviation = false;
 
-  if (meta !== undefined && meta > 0) {
-    const numericValue = typeof value === 'string'
-      ? parseFloat(value.replace(/\./g, '').replace(',', '.'))
-      : value;
+  const numericValue = typeof value === 'string'
+    ? parseFloat(value.replace(/\./g, '').replace(',', '.'))
+    : value;
 
+  if (meta !== undefined && meta > 0) {
     if (!isNaN(numericValue)) {
       deviation = ((numericValue - meta) / meta) * 100;
       showDeviation = true;
@@ -82,16 +94,22 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
   const gradient = gradientMap[color] || 'from-blue-500 to-indigo-600';
 
   return (
-    <div className="group relative bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 p-6 transition-all hover:shadow-2xl hover:scale-105 z-10 hover:z-[999]">
-      {/* Background gradient overlay */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-5 transition-all duration-300 rounded-3xl`}></div>
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-[2rem] border border-slate-100 p-6 flex flex-col h-full shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden group 
+        ${onClick ? 'cursor-pointer hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]' : ''}`}
+    >
+      {/* Efeito de Gradiente no Topo */}
+      <div className={`absolute top-0 left-0 right-0 h-1.5 opacity-80 bg-current ${color}`} />
 
-      <div className="relative">
+      <div className="flex-1 flex flex-col relative z-10 w-full">
         {/* Header com Icon e Trend */}
         <div className="flex items-start justify-between mb-4">
-          <div className={`p-3.5 rounded-2xl bg-gradient-to-br ${gradient} shadow-lg shadow-${color.split('-')[1]}-200/50 group-hover:scale-110 transition-all`}>
-            {React.cloneElement(icon as React.ReactElement, { className: 'text-white', size: 24, strokeWidth: 2.5 })}
-          </div>
+          {icon && (
+            <div className={`p-3.5 rounded-2xl bg-gradient-to-br ${gradient} shadow-lg shadow-${color.split('-')[1] || 'blue'}-200/50 group-hover:scale-110 transition-all`}>
+              {React.cloneElement(icon as React.ReactElement, { className: 'text-white', size: 24, strokeWidth: 2.5 })}
+            </div>
+          )}
 
           {/* Desvio da Meta ou Trend */}
           {showDeviation ? (
@@ -104,14 +122,13 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
               {!isGood && <span className="ml-1">⚠️</span>}
             </div>
           ) : trend !== undefined && (
-            <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${trend > 0
+            <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${trend === 'up'
               ? 'bg-emerald-50 text-emerald-600'
-              : trend < 0
+              : trend === 'down'
                 ? 'bg-rose-50 text-rose-600'
                 : 'bg-slate-100 text-slate-500'
               }`}>
-              {trend > 0 ? <TrendingUp size={14} /> : trend < 0 ? <TrendingDown size={14} /> : <Minus size={14} />}
-              {Math.abs(trend)}%
+              {trend === 'up' ? <TrendingUp size={14} /> : trend === 'down' ? <TrendingDown size={14} /> : <Minus size={14} />}
             </div>
           )}
         </div>
@@ -135,13 +152,13 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
           <div className="flex items-center gap-2 mt-3 pt-3 border-t-2 border-slate-100">
             <Sparkles size={12} className="text-slate-400" />
             <span className="text-xs font-bold text-slate-400 uppercase">Meta:</span>
-            <span className="text-sm font-black text-slate-700">
+            <span className="text-sm font-black text-slate-700 font-mono">
               {meta.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
             </span>
           </div>
         )}
 
-        {/* Indicador Extra (ex: Impacto Setup ou Volume Aparado) */}
+        {/* Indicador Extra */}
         {indicator && (
           <div className="mt-3 pt-3 border-t-2 border-slate-100 flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -156,7 +173,7 @@ export const MetricCard: React.FC<Props> = ({ title, value, unit, trend, meta, i
                   <div key={idx} className="flex flex-col gap-0.5 text-[10px] pb-1 border-b border-slate-200/50 last:border-0 last:pb-0">
                     <span className="font-semibold text-slate-600 truncate" title={detail.name}>{detail.name}</span>
                     <div className="flex items-center text-left whitespace-nowrap">
-                      <span className="font-medium text-amber-600">Término: {detail.date}</span>
+                      <span className="font-medium text-amber-600">⚠ Término: {detail.date}</span>
                     </div>
                   </div>
                 ))}

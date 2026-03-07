@@ -26,6 +26,20 @@
 - [x] Implementar Algoritmo de Cálculo (Confirmado: Perda Navalha por corte = 4.25m/17pcs) <!-- id: 25 -->
 - [x] Implementar Visualização 2D (Desenhos) <!-- id: 27 -->
 - [x] Validar Resultados (Confirmado pelo Usuário + Teste TC007 Criado) <!-- id: 26 -->
+- [x] Investigar falha na atualização do PCP via n8n
+    - [x] Corrigir busca de arquivos ("Prévia" vs "Revisão")
+    - [x] Corrigir coluna de produção (`Qtde REAL (t)`)
+- [x] Validar total de 21.645t no Dashboard
+- [x] Atualizar scripts locais e Dashboard
+
+# Tarefa: Módulo de Orçamento Anual
+- [x] Planejar Módulo de Orçamento (Tabela Editável + Supabase) <!-- id: 40 -->
+- [x] Criar Schema da Tabela `global_budget` <!-- id: 41 -->
+- [x] Desenvolver Componente `AnnualBudget.tsx` <!-- id: 42 -->
+- [x] Integrar no Roteamento e Header <!-- id: 43 -->
+- [x] Refinar UI do Orçamento (Colunas Fixas, Contraste e Espaçamento) <!-- id: 45 -->
+- [x] Corrigir Lógica de Acumulado (Médias Ponderadas para GN, EE, RM) <!-- id: 46 -->
+- [x] Validar Salvamento Automático e Cálculos <!-- id: 44 -->
 
 # Tarefa: Smart Alerts 2.0 (Preditivo)
 - [x] Planejar Lógica de Previsão vs Meta <!-- id: 28 -->

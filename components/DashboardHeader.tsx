@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Factory, Target, Activity, Smartphone, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones, Monitor, FileText, ExternalLink } from 'lucide-react';
+import { Upload, Factory, Target, Activity, Smartphone, LayoutDashboard, BarChart4, History, DollarSign, TrendingUp, Sparkles, Zap, Headphones, Monitor, FileText, ExternalLink, Calendar } from 'lucide-react';
 import { AuditLogModal } from './AuditLogModal';
 import { HealthScorePanel } from './HealthScorePanel';
 import { HelpCenterModal } from './HelpCenterModal';
@@ -14,8 +14,8 @@ interface Props {
   onSave: () => void;
   loading: boolean;
   hasForecast: boolean;
-  currentView: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs';
-  onToggleView: (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs') => void;
+  currentView: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs' | 'budget';
+  onToggleView: (view: 'dashboard' | 'forecast' | 'simulator' | 'pcp_details' | 'metallic_yield' | 'podcast' | 'hrs' | 'budget') => void;
   onConfigCosts: () => void;
   healthScore?: number;
   healthIssues?: any[];
@@ -213,8 +213,8 @@ export const DashboardHeader: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Navigation Buttons */}
-          <div className="flex flex-wrap gap-2">
+          {/* Navigation Buttons (Scrollable Horizontal) */}
+          <div className="flex flex-nowrap overflow-x-auto w-full gap-3 pb-2 pt-2 snap-x scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0">
             <NavButton icon={<LayoutDashboard size={18} />} label="Dashboard" active={currentView === 'dashboard'} onClick={() => onToggleView('dashboard')} />
             <NavButton icon={<BarChart4 size={18} />} label="Forecast" active={currentView === 'forecast'} onClick={() => onToggleView('forecast')} />
             <NavButton icon={<TrendingUp size={18} />} label="Simulador" active={currentView === 'simulator'} onClick={() => onToggleView('simulator')} />
@@ -235,6 +235,14 @@ export const DashboardHeader: React.FC<Props> = ({
               active={currentView === 'hrs'}
               onClick={() => onToggleView('hrs')}
               badge="BETA"
+            />
+            {/* Botão Orçamento */}
+            <NavButton
+              icon={<DollarSign size={18} />}
+              label="Orçamento"
+              active={currentView === 'budget'}
+              onClick={() => onToggleView('budget')}
+              badge="EDIT"
             />
           </div>
         </div>
@@ -270,6 +278,13 @@ export const DashboardHeader: React.FC<Props> = ({
                 variant="secondary"
               />
             )}
+            <button
+              onClick={() => window.open('/simulador-pcp-mensal', '_blank')}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:-translate-y-0.5 transition-all text-sm active:scale-95 cursor-pointer whitespace-nowrap"
+            >
+              <Calendar size={18} />
+              <span>Simulador Mensal</span>
+            </button>
           </div>
 
 
@@ -354,9 +369,9 @@ export const DashboardHeader: React.FC<Props> = ({
 const NavButton = ({ icon, label, active, onClick, badge }: any) => (
   <button
     onClick={onClick}
-    className={`relative flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-xl transition-all ${active
-      ? 'bg-white text-indigo-600 shadow-xl scale-105'
-      : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105'
+    className={`relative flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold rounded-xl transition-all whitespace-nowrap flex-shrink-0 snap-center ${active
+      ? 'bg-white text-indigo-600 shadow-[0_8px_30px_rgb(0,0,0,0.12)] scale-[1.02] ring-4 ring-white/30 z-10'
+      : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105 border border-white/5'
       }`}
   >
     {icon}
@@ -369,7 +384,7 @@ const NavButton = ({ icon, label, active, onClick, badge }: any) => (
   </button>
 );
 
-const UploadButton = ({ label, icon, loaded, onChange, accept, variant = 'primary', disabled = false }: any) => (
+const UploadButton = ({ label, icon, loaded, onChange, accept, variant = 'primary', disabled = false, className = '' }: any) => (
   <label className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl transition-all ${disabled
     ? 'bg-slate-100 text-slate-400 border-2 border-slate-200 cursor-not-allowed opacity-70'
     : loaded
@@ -377,7 +392,7 @@ const UploadButton = ({ label, icon, loaded, onChange, accept, variant = 'primar
       : variant === 'secondary'
         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg cursor-pointer hover:scale-105'
         : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-blue-400 cursor-pointer hover:scale-105'
-    }`}>
+    } ${className}`}>
     {icon}
     {label}
     {loaded && !disabled && <span className="ml-1">✓</span>}

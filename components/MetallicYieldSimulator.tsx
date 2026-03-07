@@ -31,6 +31,10 @@ interface MetallicYieldResults {
     commercialBarsQty: number;
     sh2RemainderM: number;
     sh2LossKg: number;
+    headFinishingLossM: number;
+    headFinishingLossKg: number;
+    tailFinishingLossM: number;
+    tailFinishingLossKg: number;
     finishingLossM: number;
     finishingLossKg: number;
     finalProductWeight: number;
@@ -81,19 +85,24 @@ export function calculateMetallicYieldMetrics(inputs: MetallicYieldInputs): Meta
     const sh2RemainderM = optimizationResult.remainderM;
     const sh2LossKg = sh2RemainderM * productLinearMass;
 
-    // 7. Perda de Acabamento (Corte Final)
+    // 7. Perda de Acabamento (Corte Final - Cabeça e Calda)
     // Agora "shearChannels" representa a "Quantidade de Cortes" para ambos os modos
-    let finishingLossM = 0;
+    let headFinishingLossM = 0;
+    let tailFinishingLossM = 0;
     const cutCount = shearChannels || 0;
 
     if (cuttingMode === 'shear') {
         // Modo Navalha: 0.25m por corte (Confirmado pelo usuário: 17 cortes = 4.25m de perda)
-        finishingLossM = cutCount * 0.250;
+        headFinishingLossM = cutCount * 0.250;
+        tailFinishingLossM = cutCount * 0.250;
     } else if (cuttingMode === 'saw') {
         // Modo Serra: 0.50m por corte
-        finishingLossM = cutCount * 0.500;
+        headFinishingLossM = cutCount * 0.500;
+        tailFinishingLossM = cutCount * 0.500;
     }
-    const finishingLossKg = finishingLossM * productLinearMass;
+    const headFinishingLossKg = headFinishingLossM * productLinearMass;
+    const tailFinishingLossKg = tailFinishingLossM * productLinearMass;
+    const finishingLossKg = headFinishingLossKg + tailFinishingLossKg;
 
     // 8. Totais
     const soldProductWeight = (commercialBarsQty * customerLength * productLinearMass);
@@ -124,7 +133,11 @@ export function calculateMetallicYieldMetrics(inputs: MetallicYieldInputs): Meta
         commercialBarsQty,
         sh2RemainderM,
         sh2LossKg,
-        finishingLossM,
+        tailFinishingLossM,
+        tailFinishingLossKg,
+        headFinishingLossM,
+        headFinishingLossKg,
+        finishingLossM: (headFinishingLossM + tailFinishingLossM),
         finishingLossKg,
         finalProductWeight,
         totalLossKg,
@@ -143,8 +156,8 @@ export const MetallicYieldSimulator: React.FC = () => {
 
     const [clientLength, setClientLength] = useState<number | string>('');
     const [billetLength, setBilletLength] = useState<number | string>('');
-    const [billetSection, setBilletSection] = useState<string>('152x152');
-    const [rawArea, setRawArea] = useState<number>(23104);
+    const [billetSection, setBilletSection] = useState<string>('150x150');
+    const [rawArea, setRawArea] = useState<number>(22500);
     const [initialTemp, setInitialTemp] = useState<number>(1200);
     const [steelGrade, setSteelGrade] = useState<string>('ASTM A572 G50');
     const [scaleLossPct, setScaleLossPct] = useState<number>(1.5);
@@ -217,61 +230,92 @@ export const MetallicYieldSimulator: React.FC = () => {
     // ========== LOGICA DE PREENCHIMENTO AUTOMÁTICO (CANAIS/NAVALHA) ==========
     const getProcessConfig = (family: string, bitola: string) => {
         const fam = (family || '').toUpperCase();
-        // Normalize: Replace dot with hyphen for consistent checking (e.g. 1.1/2 -> 1-1/2)
-        // Also remove spaces around separators if any, to be safe.
-        const bit = (bitola || '').toUpperCase().replace(/\./g, '-');
-
         let rChannels = 0;
         let sProfile = 0;
 
-        // Helper to check for exact dimension match or at least avoid partials like "3" inside "1-3/4"
-        const has = (str: string) => {
-            // Checks if 'str' exists and is not surrounded by other numbers/fractions
-            // This is a simple heuristic. For "1-3/4", checking "3" -> false because it's part of 3/4.
-            // But checking "1-3/4" -> true.
-            // A simpler way for this specific dataset:
-            return bit.includes(str);
+        // --- LÓGICA INTELIGENTE (Conversão de Medida e Busca por Proximidade) ---
+        const getNumericValue = (s: string) => {
+            const normalized = s.toUpperCase().replace(/\./g, '-');
+            // 1. Frações (ex: 1-1/2 ou 1.1/2 -> 1.5)
+            const fractionMatch = normalized.match(/(\d+)[-\s](\d+)\/(\d+)/);
+            if (fractionMatch) {
+                return parseInt(fractionMatch[1]) + (parseInt(fractionMatch[2]) / parseInt(fractionMatch[3]));
+            }
+            // 2. Fração simples (ex: 3/4 -> 0.75)
+            const simpleFractionMatch = normalized.match(/^(\d+)\/(\d+)/);
+            if (simpleFractionMatch) {
+                return parseInt(simpleFractionMatch[1]) / parseInt(simpleFractionMatch[2]);
+            }
+            // 3. Decimal/Inteiro (ex: K90, RD2, 4")
+            const numMatch = normalized.match(/(\d+[\.\,]?\d*)/);
+            if (numMatch) {
+                const val = parseFloat(numMatch[0].replace(',', '.'));
+                // Se > 15 assume-se mm (ex: 19, 25, 38, 50, 63, 75, 90, 100)
+                return val > 15 ? val / 25.4 : val;
+            }
+            return 0;
         };
 
-        // Regra 1: Barra Chata e Redondos -> Canais do Rolo = 0
+        const bitValue = getNumericValue(bitola);
+
+        const findClosest = (rules: { v: number, r: number, s: number }[]) => {
+            if (bitValue === 0) return { r: 0, s: 0 };
+            return rules.reduce((prev, curr) =>
+                (Math.abs(curr.v - bitValue) < Math.abs(prev.v - bitValue) ? curr : prev)
+            );
+        };
+
+        // Regra Especial: Barra Chata e Redondos -> Canais do Rolo = 0
         if (fam.includes('FLAT') || fam.includes('CHATA') || fam.includes('ROUND') || fam.includes('REDONDO')) {
             rChannels = 0;
         }
 
-        // Regra 2: Quantidade de Perfil na Navalha (Tabela)
         if (fam.includes('ROUND') || fam.includes('REDONDO')) {
-            // Tabela de Redondos (Rounds)
-            if (has('1-1/4') || has('1-3/8')) sProfile = 12;
-            else if (has('1-1/2') || has('1-5/8')) sProfile = 11;
-            else if (has('1-3/4')) sProfile = 10;
-            else if (has('1-7/8')) sProfile = 8;
-            else if (has('2-1/8')) sProfile = 7;
-            else if (has('2-1/4')) sProfile = 6;
-            else if (has('2-3/8') || has('2-1/2')) sProfile = 5;
-            else if (has('2-5/8') || has('2-3/4')) sProfile = 4;
-            else if (has('2-7/8') || has('3"') || has('3 ')) sProfile = 3; // Avoid matching "3" inside "1-3/4"
-            else if (has('2"') || has('2 ')) sProfile = 7; // Exact 2 check
+            const rules = [
+                { v: 1.25, r: 0, s: 12 }, { v: 1.375, r: 0, s: 12 },
+                { v: 1.5, r: 0, s: 11 }, { v: 1.625, r: 0, s: 11 },
+                { v: 1.75, r: 0, s: 10 }, { v: 1.875, r: 0, s: 8 },
+                { v: 2.125, r: 0, s: 7 }, { v: 2.25, r: 0, s: 6 },
+                { v: 2.375, r: 0, s: 5 }, { v: 2.5, r: 0, s: 5 },
+                { v: 2.625, r: 0, s: 4 }, { v: 2.75, r: 0, s: 4 },
+                { v: 2.875, r: 0, s: 3 }, { v: 3.0, r: 0, s: 3 },
+                { v: 2.0, r: 0, s: 7 }
+            ];
+            sProfile = findClosest(rules).s;
         }
         else if (fam.includes('ANGLE') || fam.includes('CANTONEIRA')) {
-            // Tabela de Cantoneiras (Equal Angles)
-            if (has('1-1/2')) { rChannels = 12; sProfile = 12; }
-            // "1-3/4" matches "1.3/4" now due to replace('.', '-')
-            else if (has('1-3/4') || has('2"') || has('2 ')) { rChannels = 10; sProfile = 10; }
-            else if (has('2-1/2') || has('3"') || has('3 ')) { rChannels = 6; sProfile = 6; }
-            else if (has('4')) { rChannels = 4; sProfile = 3; }
+            const rules = [
+                { v: 1.5, r: 12, s: 12 },
+                { v: 1.75, r: 10, s: 10 },
+                { v: 2.0, r: 10, s: 10 },
+                { v: 2.5, r: 6, s: 6 },
+                { v: 3.0, r: 6, s: 6 },
+                { v: 4.0, r: 4, s: 3 }
+            ];
+            const result = findClosest(rules);
+            rChannels = result.r;
+            sProfile = result.s;
         }
         else if (fam.includes('CHANNEL') || fam.includes('U')) {
-            // Vigas U
-            if (has('3"') || has('3 ')) { rChannels = 7; sProfile = 7; }
-            else if (has('4')) { rChannels = 5; sProfile = 6; }
-            else if (has('6')) { rChannels = 4; sProfile = 4; }
+            const rules = [
+                { v: 3.0, r: 7, s: 7 },
+                { v: 4.0, r: 5, s: 6 },
+                { v: 6.0, r: 4, s: 4 }
+            ];
+            const result = findClosest(rules);
+            rChannels = result.r;
+            sProfile = result.s;
         }
         else if (fam.includes('BEAM') || fam.includes('I')) {
-            // Vigas I
-            if (has('3"') || has('3 ')) { rChannels = 7; sProfile = 7; }
-            else if (has('4')) { rChannels = 5; sProfile = 5; }
-            else if (has('5')) { rChannels = 4; sProfile = 4; }
-            else if (has('6')) { rChannels = 3; sProfile = 3; }
+            const rules = [
+                { v: 3.0, r: 7, s: 7 },
+                { v: 4.0, r: 5, s: 5 },
+                { v: 5.0, r: 4, s: 4 },
+                { v: 6.0, r: 3, s: 3 }
+            ];
+            const result = findClosest(rules);
+            rChannels = result.r;
+            sProfile = result.s;
         }
 
         return { rChannels, sProfile };
@@ -357,12 +401,12 @@ export const MetallicYieldSimulator: React.FC = () => {
             let bestLength = 0;
 
             for (let n = 1; n <= maxN; n++) {
-                // Finishing Loss logic
+                // Finishing Loss logic (Both Head and Tail)
                 let totalFinishingLossM = 0;
                 if (cutMode === 'shear') {
-                    totalFinishingLossM = shearChannels * SHEAR_LOSS_PER_CHANNEL;
+                    totalFinishingLossM = (shearChannels * SHEAR_LOSS_PER_CHANNEL) * 2;
                 } else {
-                    totalFinishingLossM = n * SAW_LOSS_PER_PIECE;
+                    totalFinishingLossM = (n * SAW_LOSS_PER_PIECE) * 2;
                 }
 
                 const targetProductLength = (n * cLen) + totalFinishingLossM;
@@ -499,20 +543,20 @@ export const MetallicYieldSimulator: React.FC = () => {
             <div className="max-w-7xl mx-auto space-y-8">
 
                 {/* Hero Header */}
-                <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl shadow-2xl p-8 md:p-12 overflow-hidden">
+                <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl shadow-2xl p-6 md:p-12 overflow-hidden">
                     <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
                     <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
                     <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl"></div>
 
-                    <div className="relative flex items-center gap-6">
-                        <div className="p-4 bg-white/20 backdrop-blur-md rounded-2xl shadow-lg">
-                            <Settings className="text-white" size={48} strokeWidth={2} />
+                    <div className="relative flex flex-col md:flex-row items-center gap-4 md:gap-6">
+                        <div className="p-3 md:p-4 bg-white/20 backdrop-blur-md rounded-2xl shadow-lg shrink-0">
+                            <Settings className="text-white" size={36} md:size={48} strokeWidth={2} />
                         </div>
-                        <div className="flex-1">
-                            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-2">
+                        <div className="flex-1 text-center md:text-left">
+                            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-2 leading-tight">
                                 Simulador de Rendimento da Bitola
                             </h1>
-                            <p className="text-blue-100 text-lg font-medium">
+                            <p className="text-blue-100 text-sm md:text-lg font-medium max-w-2xl mx-auto md:mx-0">
                                 Otimize perdas e maximize lucros com análise em tempo real
                             </p>
                         </div>
@@ -644,12 +688,12 @@ export const MetallicYieldSimulator: React.FC = () => {
                             value={billetSection}
                             onChange={(val) => {
                                 setBilletSection(val);
-                                if (val === '152x152') setRawArea(23104);
-                                if (val === '130x130') setRawArea(16900);
+                                if (val === '150x150') setRawArea(22500);
+                                if (val === '155x155') setRawArea(24025);
                             }}
                             options={[
-                                { value: '152x152', label: '152×152 mm' },
-                                { value: '130x130', label: '130×130 mm' }
+                                { value: '150x150', label: '150×150 mm' },
+                                { value: '155x155', label: '155×155 mm' }
                             ]}
                         />
 
@@ -757,11 +801,24 @@ export const MetallicYieldSimulator: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                             <InputField label="Qtd. Canais do Rolo" value={rollerChannels} onChange={setRollerChannels} />
                             <InputField label="Qtd. Perfil Navalha" value={shearProfileQty} onChange={setShearProfileQty} />
                             <InputField label="Quantidade de Cortes" value={shearChannels} onChange={setShearChannels} />
-                            <OutputField label="Perda Calculada" value={`${calculations.finishingLossM.toFixed(2)} m (${calculations.finishingLossKg.toFixed(2)} kg)`} />
+                            <OutputField
+                                label="Corte de Calda"
+                                value={`${cutMode === 'shear' ? '0.25 m' : '0.50 m'}`}
+                            />
+                            <div className="grid grid-cols-1 gap-2">
+                                <OutputField
+                                    label="Perda Calculada cabeça"
+                                    value={`${calculations.headFinishingLossM.toFixed(2)} m (${calculations.headFinishingLossKg.toFixed(2)} kg)`}
+                                />
+                                <OutputField
+                                    label="Perda Calculada calda"
+                                    value={`${calculations.tailFinishingLossM.toFixed(2)} m (${calculations.tailFinishingLossKg.toFixed(2)} kg)`}
+                                />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -883,27 +940,39 @@ export const MetallicYieldSimulator: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Resumo de Rendimento */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <YieldCard
-                        title="Rendimento do Laminador"
-                        value={calculations.laminatorYield}
-                        icon={<Zap />}
-                        color="from-blue-500 to-indigo-600"
-                    />
-                    <YieldCard
-                        title="Rendimento do Acabamento"
-                        value={calculations.finalYield / (calculations.laminatorYield || 1) * 100}
-                        icon={<CheckCircle2 />}
-                        color="from-purple-500 to-pink-600"
-                    />
-                    <YieldCard
-                        title="Rendimento Metálico Global"
-                        value={calculations.finalYield}
-                        icon={<TrendingUp />}
-                        color="from-emerald-500 to-teal-600"
-                        highlight
-                    />
+                {/* Resumo de Rendimento com Explicação Matemática */}
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-2">
+                    <div className="flex-1 w-full max-w-sm">
+                        <YieldCard
+                            title="Rendimento do Laminador"
+                            value={calculations.laminatorYield}
+                            icon={<Zap />}
+                            color="from-blue-500 to-indigo-600"
+                        />
+                    </div>
+
+                    <MathConnector type="multiply" />
+
+                    <div className="flex-1 w-full max-w-sm">
+                        <YieldCard
+                            title="Rendimento do Acabamento"
+                            value={calculations.finalYield / (calculations.laminatorYield || 1) * 100}
+                            icon={<CheckCircle2 />}
+                            color="from-purple-500 to-pink-600"
+                        />
+                    </div>
+
+                    <MathConnector type="equals" />
+
+                    <div className="flex-1 w-full max-w-sm">
+                        <YieldCard
+                            title="Rendimento Metálico Global"
+                            value={calculations.finalYield}
+                            icon={<TrendingUp />}
+                            color="from-emerald-500 to-teal-600"
+                            highlight
+                        />
+                    </div>
                 </div>
 
                 {/* Tabela de Perdas */}
@@ -1185,6 +1254,60 @@ const YieldCard = ({ title, value, icon, color, highlight = false }: any) => (
         </div>
     </div>
 );
+
+const MathConnector = ({ type }: { type: 'multiply' | 'equals' }) => {
+    const tooltipText = type === 'multiply'
+        ? "Os rendimentos são multiplicados: (Laminador % × Acabamento %)"
+        : "O resultado final é o Rendimento Metálico Global consolidado.";
+
+    return (
+        <div className="flex flex-col items-center justify-center py-2 lg:py-0">
+            {/* Seta Mobile (aponta para baixo) */}
+            <div className="lg:hidden flex flex-col items-center gap-1 mb-2">
+                <div className="w-1 h-4 bg-slate-300 rounded-full animate-bounce"></div>
+                <div className="group relative w-8 h-8 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center shadow-sm">
+                    <span className="text-slate-500 font-black text-lg">
+                        {type === 'multiply' ? '×' : '='}
+                    </span>
+                    {/* Tooltip Mobile */}
+                    <div className="absolute top-10 w-48 bg-slate-800 text-white text-[10px] p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center shadow-xl">
+                        {tooltipText}
+                    </div>
+                </div>
+            </div>
+
+            {/* Seta Desktop (aponta para direita) */}
+            <div className="hidden lg:flex items-center gap-3">
+                <div className="flex items-center">
+                    <div className="w-8 h-1 bg-gradient-to-r from-slate-200 to-slate-300 rounded-full"></div>
+                    <div className="w-2 h-2 border-t-2 border-r-2 border-slate-300 transform rotate-45 -ml-1"></div>
+                </div>
+
+                <div className="group relative">
+                    <div className="w-10 h-10 rounded-2xl bg-white border-2 border-slate-100 flex items-center justify-center shadow-md animate-pulse cursor-help hover:border-blue-400 transition-colors">
+                        <span className="text-slate-600 font-black text-xl">
+                            {type === 'multiply' ? '×' : '='}
+                        </span>
+                    </div>
+                    {/* Tooltip Desktop */}
+                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-56 bg-slate-900/95 text-white text-xs p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 pointer-events-none z-50 text-center shadow-2xl border border-white/10 backdrop-blur-sm">
+                        <div className="font-bold mb-1 text-blue-300">
+                            {type === 'multiply' ? 'Multiplicação' : 'Resultado Final'}
+                        </div>
+                        {tooltipText}
+                        {/* Triângulo do Tooltip */}
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
+                    </div>
+                </div>
+
+                <div className="flex items-center">
+                    <div className="w-8 h-1 bg-gradient-to-r from-slate-300 to-slate-200 rounded-full"></div>
+                    <div className="w-2 h-2 border-t-2 border-r-2 border-slate-200 transform rotate-45 -ml-1"></div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const LossRow = ({ label, pct, kg, meters }: any) => (
     <tr className="hover:bg-slate-50 transition-colors">

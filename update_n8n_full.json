@@ -1,0 +1,353 @@
+{
+  "id": "E3Gaewry5V6jxWUW",
+  "nodes": [
+    {
+      "id": "trigger-schedule",
+      "name": "Agendamento Diario",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "expression": "30 10 * * 1-5",
+              "field": "cronExpression"
+            }
+          ]
+        }
+      },
+      "position": [
+        80,
+        300
+      ],
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3
+    },
+    {
+      "credentials": {
+        "supabaseApi": {
+          "id": "ameSWRyxPDFIhKE6",
+          "name": "Supabase account"
+        }
+      },
+      "id": "get-forecast",
+      "name": "Get Forecast Ontem",
+      "parameters": {
+        "limit": 7,
+        "operation": "getAll",
+        "returnAll": false,
+        "tableId": "diario_bordo_real"
+      },
+      "position": [
+        300,
+        300
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1
+    },
+    {
+      "credentials": {
+        "supabaseApi": {
+          "id": "ameSWRyxPDFIhKE6",
+          "name": "Supabase account"
+        }
+      },
+      "id": "get-pcp",
+      "name": "Get PCP Laminado",
+      "parameters": {
+        "limit": 10,
+        "operation": "getAll",
+        "returnAll": false,
+        "tableId": "pcp_data"
+      },
+      "position": [
+        520,
+        300
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1
+    },
+    {
+      "credentials": {
+        "supabaseApi": {
+          "id": "ameSWRyxPDFIhKE6",
+          "name": "Supabase account"
+        }
+      },
+      "id": "get-metas",
+      "name": "Get Metas",
+      "parameters": {
+        "limit": 100,
+        "operation": "getAll",
+        "returnAll": false,
+        "tableId": "metas_producao"
+      },
+      "position": [
+        740,
+        300
+      ],
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1
+    },
+    {
+      "id": "build-prompt",
+      "name": "Montar Prompt IA",
+      "parameters": {
+        "jsCode": "// DATA SEGURA\nconst now = new Date();\nconst brFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });\nconst hojeStr = brFormatter.format(now);\nconst hojeDate = new Date(hojeStr + 'T12:00:00');\nconst ontemDate = new Date(hojeDate);\nontemDate.setDate(ontemDate.getDate() - 1);\nconst dataOntem = ontemDate.toISOString().split('T')[0];\nconst inicioMes = hojeStr.substring(0, 7) + '-01';\nconst mesAtual = hojeDate.getMonth();\nconst monthRef = hojeStr.substring(0, 7);\nconst supabaseUrl = 'https://tyrxbarucopizpcalooh.supabase.co';\nconst supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5cnhiYXJ1Y29waXpwY2Fsb29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMDQ0OTUsImV4cCI6MjA2NzU4MDQ5NX0.ycJzhslzMyD0DQWWu5hY09SucH94OTwWI60oIqm-EB8';\nconst headers = { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey };\nconst ORCAMENTO = [\n  { month: 0, producao: 17118.27, energia: 80.76, gas: 45.40 },\n  { month: 1, producao: 20400, energia: 75.00, gas: 41.95 },\n  { month: 2, producao: 23000, energia: 75.00, gas: 41.83 },\n  { month: 3, producao: 21800, energia: 75.00, gas: 42.08 },\n  { month: 4, producao: 22300, energia: 75.00, gas: 41.83 },\n  { month: 5, producao: 11200, energia: 75.00, gas: 41.50 },\n  { month: 6, producao: 11400, energia: 75.00, gas: 42.43 },\n  { month: 7, producao: 22500, energia: 75.00, gas: 41.00 },\n  { month: 8, producao: 21500, energia: 75.00, gas: 40.00 },\n  { month: 9, producao: 22000, energia: 75.00, gas: 39.00 },\n  { month: 10, producao: 21300, energia: 73.00, gas: 38.00 },\n  { month: 11, producao: 22000, energia: 72.00, gas: 38.00 }\n];\nconst budgetMes = ORCAMENTO.find(b => b.month === mesAtual) || ORCAMENTO[1];\nlet historicoMes = [];\nlet justificativas = [];\ntry {\n  const [hResp, jResp] = await Promise.all([\n    this.helpers.httpRequest({ method: 'GET', url: supabaseUrl + '/rest/v1/diario_bordo_real?data=gte.' + inicioMes + '&data=lte.' + dataOntem + '&order=data.asc', headers }),\n    this.helpers.httpRequest({ method: 'GET', url: supabaseUrl + '/rest/v1/kpi_justifications?month_ref=eq.' + monthRef, headers })\n  ]);\n  historicoMes = Array.isArray(hResp) ? hResp : [];\n  justificativas = Array.isArray(jResp) ? jResp : [];\n} catch(e) {\n  historicoMes = $('Get Forecast Ontem').all().map(i => i.json);\n}\nconst recOntem = historicoMes.find(r => r.data === dataOntem) || historicoMes[historicoMes.length - 1] || {};\nconst justMap = {};\njustificativas.forEach(j => { justMap[j.kpi_type] = j.justification; });\nconst acumProd = historicoMes.reduce((s, r) => s + (parseFloat(r.producao_laminacao) || 0), 0);\nconst acumGasRaw = historicoMes.reduce((s, r) => s + (parseFloat(r.consumo_gas_tl01) || 0), 0);\nconst acumEe = historicoMes.reduce((s, r) => s + (parseFloat(r.consumo_energia_total) || 0), 0);\nlet totalFatorPCS = 0, countFatorPCS = 0;\nhistoricoMes.forEach(r => { const f = parseFloat(r.fator_pcs); if (!isNaN(f) && f > 0) { totalFatorPCS += f; countFatorPCS++; } });\nconst fatorPCS = countFatorPCS > 0 ? totalFatorPCS / countFatorPCS : 1;\nconst acumGas = acumGasRaw * fatorPCS;\nconst prodDia = parseFloat(recOntem.producao_laminacao) || 0;\nconst gasDia = (parseFloat(recOntem.consumo_gas_tl01) || 0) * fatorPCS;\nconst eeDia = parseFloat(recOntem.consumo_energia_total) || 0;\nconst gasEspecDia = prodDia > 0 ? gasDia / prodDia : 0;\nconst eeEspecDia = prodDia > 0 ? eeDia / prodDia : 0;\nconst gasEspecAcum = acumProd > 0 ? acumGas / acumProd : 0;\nconst eeEspecAcum = acumProd > 0 ? acumEe / acumProd : 0;\n\n// PREVISAO: FONTE UNICA = tabela forecast_cache no Supabase\nlet previsaoProducao = 0;\nlet forecastDebug = 'buscando forecast_cache';\ntry {\n  const cacheResp = await this.helpers.httpRequest({\n    method: 'GET',\n    url: supabaseUrl + '/rest/v1/forecast_cache?id=eq.current&select=previsao_fechamento,previsao_gas,previsao_energia,updated_at',\n    headers\n  });\n  if (Array.isArray(cacheResp) && cacheResp.length > 0 && cacheResp[0].previsao_fechamento > 0) {\n    previsaoProducao = Math.round(cacheResp[0].previsao_fechamento);\n    previsaoGnEspec = cacheResp[0].previsao_gas || 0;\n    previsaoEeEspec = cacheResp[0].previsao_energia || 0;\n    forecastDebug = 'forecast_cache OK: ' + previsaoProducao + ' (at ' + cacheResp[0].updated_at + ')';\n  }\n} catch(e) {\n  forecastDebug = 'forecast_cache FALHOU: ' + (e.message || '').substring(0, 60);\n}\nif (previsaoProducao === 0) {\n  try {\n    const forecastResp = await this.helpers.httpRequest({ method: 'GET', url: 'http://127.0.0.1:3000/api/forecast', timeout: 3000 });\n    if (forecastResp && forecastResp.previsaoFechamento > 0) {\n      previsaoProducao = forecastResp.previsaoFechamento;\n      previsaoGnEspec = forecastResp.previsaoGas || 0;\n      previsaoEeEspec = forecastResp.previsaoEnergia || 0;\n      forecastDebug += ' | API local OK: ' + previsaoProducao;\n    }\n  } catch(e) { forecastDebug += ' | API local falhou'; }\n}\nif (previsaoProducao === 0) {\n  try {\n    const fimMesStr2 = new Date(hojeDate.getFullYear(), mesAtual + 1, 1).toISOString().split('T')[0];\n    const pcpResp = await this.helpers.httpRequest({ method: 'GET', url: supabaseUrl + '/rest/v1/pcp_data?select=producao_planejada&inicio=gte.' + inicioMes + 'T00:00:00&inicio=lt.' + fimMesStr2 + 'T00:00:00', headers });\n    const pcpAll = Array.isArray(pcpResp) ? pcpResp : [];\n    const soma = pcpAll.reduce((s, r) => s + (parseFloat(r.producao_planejada) || 0), 0);\n    if (soma > 0) { previsaoProducao = Math.round(soma); forecastDebug += ' | PCP soma: ' + previsaoProducao; }\n  } catch(e2) { forecastDebug += ' | PCP falhou'; }\n}\nif (previsaoProducao === 0) {\n  const diaRef = hojeDate.getDate() - 1;\n  const totalDias = new Date(hojeDate.getFullYear(), hojeDate.getMonth() + 1, 0).getDate();\n  previsaoProducao = diaRef > 0 ? Math.round((acumProd / diaRef) * totalDias) : Math.round(acumProd);\n  forecastDebug += ' | Linear: ' + previsaoProducao;\n}\n\nif (previsaoGnEspec === 0) previsaoGnEspec = gasEspecAcum;\nif (previsaoEeEspec === 0) previsaoEeEspec = eeEspecAcum;\nlet previsaoGnEspec = 0;\nlet previsaoEeEspec = 0;\nconst fimMesStr = new Date(hojeDate.getFullYear(), mesAtual + 1, 1).toISOString().split('T')[0];\nlet pcpMes = [];\ntry {\n  const pcpFamResp = await this.helpers.httpRequest({ method: 'GET', url: supabaseUrl + '/rest/v1/pcp_data?select=familia,inicio&and=(inicio.gte.' + inicioMes + 'T00:00:00,inicio.lt.' + fimMesStr + 'T00:00:00)&order=inicio.asc&limit=500', headers });\n  pcpMes = Array.isArray(pcpFamResp) ? pcpFamResp : [];\n} catch(e) {}\nfunction simplificarFamilia(fam) {\n  const f = (fam || '').toUpperCase().trim();\n  if (f.includes('CHATO MOLA')) return 'Barra Chata Mola';\n  if (f.includes('CHATO')) return 'Barra Chata';\n  if (f.includes('CANTONEIRA')) return 'Cantoneira';\n  if (f.includes('REDONDA')) return 'Barra Redonda';\n  if (f.includes('VIGA I')) return 'Viga I';\n  if (f.includes('VIGA U')) return 'Viga U';\n  if (f.includes('TRILHO')) return 'Trilho';\n  if (f.includes('PERFIL')) return 'Perfil';\n  return f || 'Outros';\n}\nconst pcpDia = pcpMes.filter(p => (p.inicio || '').split('T')[0] === dataOntem);\nconst familiasTexto = [...new Set(pcpDia.map(p => simplificarFamilia(p.familia)).filter(f => f !== 'Outros'))].join(', ') || 'Nao identificado';\nconst dataFormatada = dataOntem.split('-').reverse().join('/');\nconst fmt = (n) => Number(n).toFixed(2).replace('.', ',');\nconst fmtInt = (n) => Math.round(Number(n)).toString();\nconst prompt = 'Crie um resumo diario em texto corrido, SEM asteriscos, SEM negrito, SEM emojis, SEM markdown. Destinado a diretoria.\\n\\nREGRAS:\\n1. Diga sempre dia anterior ou fechamento do dia. Nunca turno anterior.\\n2. Nunca use T isolado. Escreva toneladas por extenso.\\n3. Gas natural: metro cubico por tonelada.\\n4. Energia eletrica: quilowatt-hora por tonelada.\\n5. Seja direto. Se houver justificativa para um KPI, inclua naturalmente.\\n6. INICIE COM:\\n\\nBom dia. Este e o nosso briefing diario com o balanco do fechamento do dia ' + dataFormatada + '.\\n\\nDados de producao:\\nAcumulado do mes: ' + fmt(acumProd) + ' toneladas.\\nProducao do dia anterior: ' + fmtInt(prodDia) + ' toneladas.\\nPrevisao de fechamento do mes: ' + fmtInt(previsaoProducao) + ' toneladas (orcamento: ' + fmtInt(budgetMes.producao) + ' toneladas).\\n' + (justMap.producao ? 'Nota: ' + justMap.producao : '') + '\\n\\nGas natural:\\nConsumo especifico acumulado: ' + fmt(gasEspecAcum) + ' m3 por tonelada.\\nConsumo especifico do dia anterior: ' + fmt(gasEspecDia) + ' m3 por tonelada.\\nPrevisao de fechamento: ' + fmt(previsaoGnEspec) + ' m3 por tonelada.\\n' + (justMap.gas ? 'Nota: ' + justMap.gas : '') + '\\n\\nEnergia eletrica:\\nConsumo especifico acumulado: ' + fmt(eeEspecAcum) + ' kWh por tonelada.\\nConsumo especifico do dia anterior: ' + fmt(eeEspecDia) + ' kWh por tonelada.\\nPrevisao de fechamento: ' + fmt(previsaoEeEspec) + ' kWh por tonelada.\\n' + (justMap.energia ? 'Nota: ' + justMap.energia : '') + '\\n\\nAgradeco a atencao. Sigamos focados.';\nreturn [{ json: {\n  prompt,\n  dataRef: dataFormatada,\n  dataISO: dataOntem,\n  material: familiasTexto,\n  producao: { acumulada: fmt(acumProd), dia: fmtInt(prodDia), previsao: fmtInt(previsaoProducao), orcamento: fmtInt(budgetMes.producao), justificativa: justMap.producao || '' },\n  gn: { acumEspec: fmt(gasEspecAcum), especDia: fmt(gasEspecDia), previsao: fmt(previsaoGnEspec), fatorPCS: fatorPCS.toFixed(6), justificativa: justMap.gas || '' },\n  ee: { acumEspec: fmt(eeEspecAcum), especDia: fmt(eeEspecDia), previsao: fmt(previsaoEeEspec), justificativa: justMap.energia || '' },\n  debug: { hojeStr, dataOntem, diasHistorico: historicoMes.length, forecastAPI: forecastDebug }\n} }];\n"
+      },
+      "position": [
+        960,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "gemini-ai",
+      "name": "Gemini AI - Gerar Briefing",
+      "parameters": {
+        "jsonBody": "={{ { contents: [{ parts: [{ text: $json.prompt }] }] } }}",
+        "method": "POST",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBIHJRZUxK7NekkulJHtKk1mFAOcErvNHQ"
+      },
+      "position": [
+        1180,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "id": "extract-text",
+      "name": "Extrair Texto do Briefing",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "text-assign",
+              "name": "briefingText",
+              "type": "string",
+              "value": "={{ $json.candidates[0].content.parts[0].text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "position": [
+        1400,
+        300
+      ],
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4
+    },
+    {
+      "id": "gemini-tts",
+      "name": "Gemini TTS - Gerar Audio",
+      "parameters": {
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.briefingText }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } } } }) }}",
+        "method": "POST",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=AIzaSyBIHJRZUxK7NekkulJHtKk1mFAOcErvNHQ"
+      },
+      "position": [
+        1620,
+        300
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "id": "convert-audio",
+      "name": "Converter e Salvar Audio",
+      "parameters": {
+        "jsCode": "const { execSync } = require('child_process');\nconst path = require('path');\nconst fs = require('fs');\n\nconst audioData = $input.first().json.candidates[0].content.parts[0].inlineData.data;\nconst pcmBuffer = Buffer.from(audioData, 'base64');\n\n// Monta cabeçalho WAV (PCM 16-bit, 24000 Hz, Mono)\nconst sampleRate = 24000;\nconst numChannels = 1;\nconst bitsPerSample = 16;\nconst byteRate = sampleRate * numChannels * (bitsPerSample / 8);\nconst blockAlign = numChannels * (bitsPerSample / 8);\nconst dataSize = pcmBuffer.length;\nconst wavBuffer = Buffer.alloc(44 + dataSize);\nwavBuffer.write('RIFF', 0);\nwavBuffer.writeUInt32LE(36 + dataSize, 4);\nwavBuffer.write('WAVE', 8);\nwavBuffer.write('fmt ', 12);\nwavBuffer.writeUInt32LE(16, 16);\nwavBuffer.writeUInt16LE(1, 20);\nwavBuffer.writeUInt16LE(numChannels, 22);\nwavBuffer.writeUInt32LE(sampleRate, 24);\nwavBuffer.writeUInt32LE(byteRate, 28);\nwavBuffer.writeUInt16LE(blockAlign, 32);\nwavBuffer.writeUInt16LE(bitsPerSample, 34);\nwavBuffer.write('data', 36);\nwavBuffer.writeUInt32LE(dataSize, 40);\npcmBuffer.copy(wavBuffer, 44);\n\nconst audioDir = 'C:\\\\Users\\\\40000398\\\\OneDrive - ArcelorMittal\\\\Desktop\\\\n8n\\\\public\\\\audio';\nconst wavPath = path.join(audioDir, 'daily_briefing.wav');\nconst mp3Path = path.join(audioDir, 'daily_briefing.mp3');\n\n// Garante que o diretório existe\nif (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });\n\n// Salva WAV (necessário como base para o MP3 ou fallback)\nfs.writeFileSync(wavPath, wavBuffer);\n\n// Converte para MP3 enviando para o site via API\ntry {\n  const tempWav = path.join(audioDir, 'daily_briefing_temp.wav');\n  fs.writeFileSync(tempWav, wavBuffer);\n  execSync(`ffmpeg -y -i \"${tempWav}\" -codec:a libmp3lame -b:a 128k -ar 44100 \"${mp3Path}\"`, { timeout: 120000 });\n  fs.unlinkSync(tempWav);\n  \n  const mp3Base64 = fs.readFileSync(mp3Path, 'base64');\n  const briefingText = $('Extrair Texto do Briefing').first().json.briefingText || '';\n  \n  // Envia MP3 e Texto para a API do site\n  const result = await this.helpers.httpRequest({ \n    method: 'POST', \n    url: 'http://127.0.0.1:3000/api/audio', \n    body: { \n      audioFilename: 'daily_briefing.mp3', \n      audioData: mp3Base64, \n      textFilename: 'daily_briefing.txt', \n      textContent: briefingText \n    }, \n    headers: { 'Content-Type': 'application/json' }, \n    timeout: 30000 \n  });\n\n  return [{ json: { status: 'Briefing MP3 gerado e enviado', mp3Path, ...result } }];\n} catch(err) {\n  // Se falhar o MP3, envia o WAV original\n  const wavBase64 = wavBuffer.toString('base64');\n  const briefingText = $('Extrair Texto do Briefing').first().json.briefingText || '';\n  const result = await this.helpers.httpRequest({ \n    method: 'POST', \n    url: 'http://127.0.0.1:3000/api/audio', \n    body: { \n      audioFilename: 'daily_briefing.wav', \n      audioData: wavBase64, \n      textFilename: 'daily_briefing.txt', \n      textContent: briefingText \n    }, \n    headers: { 'Content-Type': 'application/json' }, \n    timeout: 30000 \n  });\n  return [{ json: { status: 'ffmpeg falhou, enviado como WAV', error: err.message, ...result } }];\n}\n"
+      },
+      "position": [
+        1840,
+        300
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "gen-podcast-script",
+      "name": "Gerar Script Podcast",
+      "parameters": {
+        "jsonBody": "={{ { contents: [{ parts: [{ text: 'Voce e roteirista do podcast industrial brasileiro PREDICTOR PRO CAST. Transforme o briefing operacional abaixo em um dialogo NATURAL e ENVOLVENTE entre dois apresentadores. MARCOS e o apresentador principal, engenheiro senior experiente analitico e direto. JULIA e a co-apresentadora, engenheira de processo curiosa e didatica. REGRAS: duracao 3-5 minutos de leitura, comece com saudacao natural como Bom dia aqui e o Predictor PRO Cast, dialogo fluido com interjeicoes naturais, explique os numeros de forma didatica e acessivel, destaque alertas com urgencia mas sem alarme, elogie resultados positivos com entusiasmo, termine com acao prioritaria do dia e despedida. IMPORTANTE: mencione apenas a FAMILIA do produto (Cantoneira, Barra Chata etc) SEM bitola ou dimensoes especificas. NAO use asteriscos negrito ou formatacao. Gere APENAS o dialogo no formato MARCOS: texto e JULIA: texto. BRIEFING: ' + $json.briefingText }] }] } }}",
+        "method": "POST",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBIHJRZUxK7NekkulJHtKk1mFAOcErvNHQ"
+      },
+      "position": [
+        1400,
+        560
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "id": "gemini-tts-podcast",
+      "name": "Gemini TTS - Podcast",
+      "parameters": {
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.candidates[0].content.parts[0].text }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } } } }) }}",
+        "method": "POST",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=AIzaSyBIHJRZUxK7NekkulJHtKk1mFAOcErvNHQ"
+      },
+      "position": [
+        1620,
+        560
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "id": "save-podcast-audio",
+      "name": "Salvar Audio Podcast",
+      "parameters": {
+        "jsCode": "const { execSync } = require('child_process');\nconst path = require('path');\nconst fs = require('fs');\n\nconst audioData = $input.first().json.candidates[0].content.parts[0].inlineData.data;\nconst pcmBuffer = Buffer.from(audioData, 'base64');\n\n// Monta cabeçalho WAV (PCM 16-bit, 24000 Hz, Mono)\nconst sampleRate = 24000;\nconst numChannels = 1;\nconst bitsPerSample = 16;\nconst byteRate = sampleRate * numChannels * (bitsPerSample / 8);\nconst blockAlign = numChannels * (bitsPerSample / 8);\nconst dataSize = pcmBuffer.length;\nconst wavBuffer = Buffer.alloc(44 + dataSize);\nwavBuffer.write('RIFF', 0);\nwavBuffer.writeUInt32LE(36 + dataSize, 4);\nwavBuffer.write('WAVE', 8);\nwavBuffer.write('fmt ', 12);\nwavBuffer.writeUInt32LE(16, 16);\nwavBuffer.writeUInt16LE(1, 20);\nwavBuffer.writeUInt16LE(numChannels, 22);\nwavBuffer.writeUInt32LE(sampleRate, 24);\nwavBuffer.writeUInt32LE(byteRate, 28);\nwavBuffer.writeUInt16LE(blockAlign, 32);\nwavBuffer.writeUInt16LE(bitsPerSample, 34);\nwavBuffer.write('data', 36);\nwavBuffer.writeUInt32LE(dataSize, 40);\npcmBuffer.copy(wavBuffer, 44);\n\n// Caminhos dos arquivos\nconst audioDir = 'C:\\\\Users\\\\40000398\\\\OneDrive - ArcelorMittal\\\\Desktop\\\\n8n\\\\public\\\\audio';\nconst wavPath = path.join(audioDir, 'notebook_briefing_temp.wav');\nconst mp3Path = path.join(audioDir, 'notebook_briefing.mp3');\n\n// Garante que o diretório existe\nif (!fs.existsSync(audioDir)) fs.mkdirSync(audioDir, { recursive: true });\n\n// Salva WAV temporário\nfs.writeFileSync(wavPath, wavBuffer);\n\n// Converte para MP3 usando ffmpeg (128kbps, stereo para compatibilidade WhatsApp)\ntry {\n  execSync(`ffmpeg -y -i \"${wavPath}\" -codec:a libmp3lame -b:a 128k -ar 44100 \"${mp3Path}\"`, { timeout: 120000 });\n  fs.unlinkSync(wavPath); // Remove WAV temporário\n  const mp3Size = fs.statSync(mp3Path).size;\n  const mp3Base64 = fs.readFileSync(mp3Path, 'base64');\n  \n  // Também envia para a API local do dashboard (para exibição no player)\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'http://127.0.0.1:3000/api/audio',\n    body: { audioFilename: 'notebook_briefing.mp3', audioData: mp3Base64 },\n    headers: { 'Content-Type': 'application/json' },\n    timeout: 30000\n  }).catch(() => {});\n  \n  return [{ json: { status: 'Podcast MP3 gerado com sucesso', mp3Path, mp3SizeKB: Math.round(mp3Size / 1024) } }];\n} catch(err) {\n  // Fallback: salva WAV se ffmpeg falhar\n  const wavFallback = path.join(audioDir, 'notebook_briefing.wav');\n  fs.writeFileSync(wavFallback, wavBuffer);\n  return [{ json: { status: 'ffmpeg falhou, salvo como WAV', error: err.message, wavPath: wavFallback } }];\n}\n"
+      },
+      "position": [
+        1840,
+        560
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    }
+  ],
+  "connections": {
+    "Agendamento Diario": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Get Forecast Ontem",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Extrair Texto do Briefing": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Gemini TTS - Gerar Audio",
+            "type": "main"
+          },
+          {
+            "index": 0,
+            "node": "Gerar Script Podcast",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Gemini AI - Gerar Briefing": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Extrair Texto do Briefing",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Gemini TTS - Gerar Audio": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Converter e Salvar Audio",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Gemini TTS - Podcast": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Salvar Audio Podcast",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Gerar Script Podcast": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Gemini TTS - Podcast",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Get Forecast Ontem": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Get PCP Laminado",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Get Metas": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Montar Prompt IA",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Get PCP Laminado": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Get Metas",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Montar Prompt IA": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Gemini AI - Gerar Briefing",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Briefing Diario AI [ArcelorMittal]",
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timezone": "America/Sao_Paulo"
+  }
+}

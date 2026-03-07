@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { saveToCache, loadFromCache, enqueueSync } from './db';
 
 // URL do seu projeto Supabase extraída do link fornecido
 const SUPABASE_URL = 'https://tyrxbarucopizpcalooh.supabase.co';
@@ -64,6 +65,27 @@ export const ensureTableColumns = async () => {
       console.log('✅ Schema PCP verificado: Colunas novas existem.');
     }
 
+    // 3. Verifica Tabela GLOBAL_BUDGET
+    const { error: errorBudget } = await supabase
+      .from('global_budget')
+      .select('year, month, kpi_name, valor_orcado, valor_realizado')
+      .limit(1);
+
+    if (errorBudget) {
+      console.warn('⚠️ Tabela global_budget pode não existir ou faltar colunas:', errorBudget.message);
+      console.log('📋 SQL sugerido (Budget):');
+      console.log('   CREATE TABLE IF NOT EXISTS global_budget (');
+      console.log('       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),');
+      console.log('       year INTEGER NOT NULL,');
+      console.log('       month INTEGER NOT NULL,');
+      console.log('       kpi_name TEXT NOT NULL,');
+      console.log('       valor_orcado NUMERIC DEFAULT 0,');
+      console.log('       valor_realizado NUMERIC DEFAULT 0,');
+      console.log('       updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone(\'utc\'::text, now()),');
+      console.log('       UNIQUE(year, month, kpi_name)');
+      console.log('   );');
+    }
+
   } catch (err) {
     console.error('Erro na verificação de schema:', err);
   }
@@ -95,10 +117,13 @@ export const getMetasFromSupabase = async () => {
       }
     }
 
+    // Salva no cache se der certo
+    saveToCache('metas_producao', allMetas).catch(console.error);
+
     return allMetas;
   } catch (err) {
-    console.error("Erro ao buscar metas do Supabase:", err);
-    throw err;
+    console.error("Erro ao buscar metas do Supabase (Offline fallback):", err);
+    return await loadFromCache('metas_producao');
   }
 };
 
@@ -193,8 +218,9 @@ export const updateMetasInSupabase = async (metasData: any[], user = "Sistema") 
     if (error) throw error;
     return data;
   } catch (err) {
-    console.error("Erro ao atualizar metas no Supabase:", err);
-    throw err;
+    console.error("Erro de rede ao atualizar metas, salvando offline...", err);
+    await enqueueSync('metas_producao', 'update', metasData);
+    return metasData;
   }
 };
 
@@ -360,15 +386,17 @@ export const getPcpFromSupabase = async () => {
       'Cart. Futura': row.carteira_futura,
       'Cart. Atraso+ M0': row.cart_atraso_m0,
       'Prod - Cart. Total': row.prod_cart_total,
-      '_original_prod': row._original_prod,
       '_original_end_date': row._original_end_date,
       '_trim_ratio': row._trim_ratio
     })) || [];
 
+    // Salva cópia local
+    saveToCache('pcp_data', mappedData).catch(console.error);
+
     return mappedData;
   } catch (err) {
-    console.error('Erro ao buscar PCP do Supabase:', err);
-    return [];
+    console.error('Erro ao buscar PCP (Offline fallback):', err);
+    return await loadFromCache('pcp_data');
   }
 };
 
@@ -379,7 +407,7 @@ export const savePcpToSupabase = async (pcpData: any[]) => {
     const { error: deleteError } = await supabase
       .from('pcp_data')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Deleta tudo
+      .not('id', 'is', null); // Garante a limpeza total de todos os registros (uuid) antes do novo insert
 
     if (deleteError) throw deleteError;
 
@@ -391,8 +419,9 @@ export const savePcpToSupabase = async (pcpData: any[]) => {
     if (error) throw error;
     return data;
   } catch (err) {
-    console.error("Erro ao salvar PCP no Supabase:", err);
-    throw err;
+    console.error("Erro de rede ao salvar PCP, salvando offline...", err);
+    await enqueueSync('pcp_data', 'insert', pcpData);
+    return pcpData;
   }
 };
 
@@ -440,6 +469,100 @@ export const deleteKPIJustification = async (kpi_type: string, month_ref: string
     if (error) throw error;
   } catch (err) {
     console.error("Erro ao excluir justificativa de KPI:", err);
+    throw err;
+  }
+};
+
+export const getGlobalBudget = async (year: number) => {
+  try {
+    const { data, error } = await supabase
+      .from('global_budget')
+      .select('*')
+      .eq('year', year);
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error("Erro ao buscar orçamento global:", err);
+    return [];
+  }
+};
+
+export const saveGlobalBudget = async (budgetEntries: any[]) => {
+  try {
+    const { data, error } = await supabase
+      .from('global_budget')
+      .upsert(budgetEntries, { onConflict: 'year,month,kpi_name' });
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("Erro ao salvar orçamento global:", err);
+    throw err;
+  }
+};
+
+// ========== FUNÇÕES PARA O SISTEMA DE PODCASTS (MÃOS LIVRES) ==========
+
+export interface PodcastEntry {
+  id?: string;
+  title: string;
+  description: string;
+  duration: string;
+  date: string;
+  host: string;
+  category: string;
+  audio_url: string;
+  transcription?: string;
+  created_at?: string;
+}
+
+export const getPodcastsFromSupabase = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('podcasts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Mapear campos snake_case do SQL para camelCase do React (opcional, mas bom para manter padrão)
+    return data?.map(p => ({
+      ...p,
+      audioUrl: p.audio_url // Garante compatibilidade com o componente antigo
+    })) || [];
+  } catch (err) {
+    console.error("Erro ao buscar podcasts do Supabase:", err);
+    return [];
+  }
+};
+
+export const savePodcastToSupabase = async (podcast: PodcastEntry) => {
+  try {
+    const { data, error } = await supabase
+      .from('podcasts')
+      .upsert(podcast)
+      .select();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("Erro ao salvar podcast no Supabase:", err);
+    throw err;
+  }
+};
+
+export const deletePodcastFromSupabase = async (id: string) => {
+  try {
+    const { error } = await supabase
+      .from('podcasts')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error("Erro ao excluir podcast do Supabase:", err);
     throw err;
   }
 };

@@ -1,10 +1,18 @@
 import React, { useState, useCallback } from 'react';
 import { useHRS } from './HRSContext';
+import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { PassData, PassType, RawMaterial, SteelType, MotorData, ProcessData, LossesData } from '../../utils/hrsTypes';
 
 const CHANNEL_TYPE_LABELS: Record<PassType, string> = {
-    oval: 'Oval', round: 'Redondo', box: 'Caixa', flat: 'Mesa Lisa',
-    square: 'Quadrado', diamond: 'Losango', angle: 'Cantoneira (L)',
+    oval: 'Oval',
+    round: 'Redondo',
+    box: 'Caixa',
+    flat: 'Mesa Lisa',
+    square: 'Quadrado',
+    diamond: 'Losango',
+    angle: 'Cantoneira (L)',
+    edge_oval: 'Borda Oval',
+    swedish_oval: 'Oval Sueco',
 };
 const STEEL_TYPE_LABELS: Record<SteelType, string> = {
     carbon: 'Ao Carbono / baixa liga', high_alloy: 'Alta liga',
@@ -290,7 +298,7 @@ const LossesView = () => {
 
 // ============ VIEW: PASSE COMPLETO (~50 variáveis) ============
 const PassDetailView = ({ passData, passLabel }: { passData: PassData; passLabel: string }) => {
-    const { updatePass, recalculateAll, project } = useHRS();
+    const { updatePass, recalculateAll, project, optimizeLuzForPass } = useHRS();
     const id = passData.id;
     const [activeTab, setActiveTab] = useState<'canal' | 'motor'>('canal');
 
@@ -303,9 +311,16 @@ const PassDetailView = ({ passData, passLabel }: { passData: PassData; passLabel
     return (
         <>
             <div className="p-2 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Passe: {passLabel} — Dimensões {p.exitBarWidth.toFixed(1)} mm x {p.exitBarHeight.toFixed(1)} mm / Redução: {p.reduction.toFixed(2)}%</span>
+                <div className="flex items-center gap-2">
+                    <span>Passe: {passLabel} — Dimensões {p.exitBarWidth.toFixed(1)} mm x {p.exitBarHeight.toFixed(1)} mm</span>
+                    {p.importedLuzSemCarga != null && (
+                        <span className="flex items-center gap-1 bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[10px] border border-green-200">
+                            <CheckCircle size={10} /> SINCRONIZADO COM PLANO
+                        </span>
+                    )}
+                </div>
                 <span className="text-xs text-blue-600 cursor-pointer hover:underline font-bold" onClick={recalculateAll}>
-                    Recalcular
+                    Recalcular Tudo
                 </span>
             </div>
 
@@ -431,6 +446,152 @@ const PassDetailView = ({ passData, passLabel }: { passData: PassData; passLabel
                             { variable: 'Torque em Vazio', value: p.vacuumTorque, unit: 'kNm' },
                             { variable: 'Fator de Carga', value: p.loadFactor * 100, unit: '%' },
                         ]).map((row, idx) => <CalcRow key={row.variable} row={row} idx={idx} />)}
+
+                        {/* === ANÁLISE TÉCNICA (Plano de Câmbio Importado) === */}
+                        {(p.importedFr != null || p.importedLuzSemCarga != null) && (
+                            <>
+                                <SectionHeader title="Análise Técnica (Dados do PDF)" color="gray" />
+                                <tr className="border-b border-gray-200 bg-white">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Luz sem Carga (Importada)</td>
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs font-mono">{p.importedLuzSemCarga?.toFixed(1) || '-'}</td>
+                                    <td className="px-3 py-1.5 text-xs text-gray-500">mm</td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-gray-50/50">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Bitola do Plano (Importada)</td>
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs font-mono">
+                                        {p.importedLargura || p.importedAltura ? `L ${p.importedLargura || '?'} x A ${p.importedAltura || '?'}` : '-'}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-xs text-gray-500">mm</td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-white">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Luz de Projeto (Calculada)</td>
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs font-mono">{p.luzProj?.toFixed(1) || p.luz?.toFixed(1)}</td>
+                                    <td className="px-3 py-1.5 text-xs text-gray-500">mm</td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-gray-50/50">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">FR Importado</td>
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs font-mono">{p.importedFr?.toFixed(2) || '-'}</td>
+                                    <td className="px-3 py-1.5 text-xs text-gray-500">%</td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-white">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Área de Entrada</td>
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs font-mono">{p.entryArea?.toFixed(1)}</td>
+                                    <td className="px-3 py-1.5 text-xs text-gray-500">mm²</td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-gray-50/50">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Área de Saída</td>
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs font-mono">{p.exitArea?.toFixed(1)}</td>
+                                    <td className="px-3 py-1.5 text-xs text-gray-500">mm²</td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-white">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Redução (Calculada)</td>
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs font-mono">{p.reduction?.toFixed(2)}</td>
+                                    <td className="px-3 py-1.5 text-xs text-gray-500">%</td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-gray-50/50">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium whitespace-nowrap">
+                                        Análise de Redução
+                                        {p.importedFr != null && (
+                                            <button
+                                                onClick={() => optimizeLuzForPass(id)}
+                                                className="block mt-1 px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] hover:bg-blue-700 font-bold transition-colors"
+                                            >
+                                                Otimizar Luz (Target FR)
+                                            </button>
+                                        )}
+                                    </td>
+                                    <td colSpan={2} className="px-3 py-1.5 text-xs">
+                                        {(() => {
+                                            const reduction = p.reduction;
+                                            const train = passConfig?.trainType;
+                                            let min = 0;
+                                            let max = 0;
+                                            let trainLabel = '';
+
+                                            if (train === 'desbaste') { min = 20; max = 35; trainLabel = 'Desbaste'; }
+                                            else if (train === 'intermediario') { min = 15; max = 25; trainLabel = 'Intermediário'; }
+                                            else if (train === 'acabador') { min = 8; max = 15; trainLabel = 'Acabador'; }
+                                            else { return <span className="text-gray-400">Tipo de trem não identificado</span>; }
+
+                                            if (reduction > max) {
+                                                return (
+                                                    <span className="text-red-600 flex items-center gap-1 font-medium">
+                                                        <AlertTriangle size={14} /> Redução Excessiva para {trainLabel}: {reduction.toFixed(1)}% (Máx: {max}%). Risco de sobrecarga e desgaste.
+                                                    </span>
+                                                );
+                                            } else if (reduction < min) {
+                                                return (
+                                                    <span className="text-amber-600 flex items-center gap-1 font-medium">
+                                                        <AlertTriangle size={14} /> Redução Baixa para {trainLabel}: {reduction.toFixed(1)}% (Mín: {min}%). Baixa eficiência produtiva.
+                                                    </span>
+                                                );
+                                            } else {
+                                                return (
+                                                    <span className="text-green-600 flex items-center gap-1 font-medium">
+                                                        <CheckCircle size={14} /> Redução de {reduction.toFixed(1)}% está dentro da faixa ideal para o trem {trainLabel}.
+                                                    </span>
+                                                );
+                                            }
+                                        })()}
+                                    </td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-white">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Análise de Preenchimento</td>
+                                    <td colSpan={2} className="px-3 py-1.5 text-xs">
+                                        {(() => {
+                                            const fill = (p.barOccupiedArea / p.channelArea) * 100;
+                                            if (fill > 100.5) {
+                                                return (
+                                                    <span className="text-red-600 flex items-center gap-1 font-bold">
+                                                        <AlertTriangle size={14} /> CANAL VAZANDO: {fill.toFixed(1)}%. Risco iminente de rebarba e quebra de guia!
+                                                    </span>
+                                                );
+                                            } else if (fill < 85) {
+                                                return (
+                                                    <span className="text-amber-600 flex items-center gap-1 font-medium">
+                                                        <AlertTriangle size={14} /> Sub-preenchimento: {fill.toFixed(1)}%. Preenchimento insuficiente para garantir a forma.
+                                                    </span>
+                                                );
+                                            } else {
+                                                return (
+                                                    <span className="text-green-600 flex items-center gap-1 font-medium">
+                                                        <CheckCircle size={14} /> Preenchimento Ideal: {fill.toFixed(1)}%. Fluxo de metal controlado.
+                                                    </span>
+                                                );
+                                            }
+                                        })()}
+                                    </td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-white">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Análise de Vida Útil</td>
+                                    <td colSpan={2} className="px-3 py-1.5 text-xs">
+                                        {p.maxPressure > 150 ? (
+                                            <span className="text-red-600 flex items-center gap-1 font-medium">
+                                                <AlertTriangle size={14} /> Pressão Crítica: {p.maxPressure.toFixed(1)} MPa. Risco de desgaste acelerado. Aumente o raio de concordância ou a Luz.
+                                            </span>
+                                        ) : (
+                                            <span className="text-green-600 flex items-center gap-1 font-medium">
+                                                <CheckCircle size={14} /> Pressão de {p.maxPressure.toFixed(1)} MPa está dentro do limite seguro para o cilindro.
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                                <tr className="border-b border-gray-200 bg-gray-50/50">
+                                    <td className="border-r border-gray-200 px-3 py-1.5 text-xs text-gray-800 font-medium">Análise de Esforço no Motor</td>
+                                    <td colSpan={2} className="px-3 py-1.5 text-xs">
+                                        {p.loadFactor > 0.9 ? (
+                                            <span className="text-red-600 flex items-center gap-1 font-medium">
+                                                <AlertTriangle size={14} /> Fator de carga em {(p.loadFactor * 100).toFixed(1)}%. Motor sobrecarregado!
+                                            </span>
+                                        ) : (
+                                            <span className="text-green-600 flex items-center gap-1 font-medium">
+                                                <CheckCircle size={14} /> Fator de carga em {(p.loadFactor * 100).toFixed(1)}%. Motor operando bem.
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                            </>
+                        )}
                     </GridTable>
                 ) : (
                     /* === ABA MOTOR === */
@@ -502,7 +663,8 @@ export const HRSDataGrid = () => {
 
     const getPassLabel = () => {
         if (!selectedPass) return '';
-        const typeLabel = selectedPass.trainType === 'desbaste' ? 'Desbaste' : 'Intermediário';
+        const train = selectedPass.trainType;
+        const typeLabel = train === 'desbaste' ? 'Desbaste' : train === 'intermediario' ? 'Intermediário' : 'Acabador';
         return `${typeLabel} #${selectedPass.passNumber}`;
     };
 

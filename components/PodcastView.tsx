@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Headphones, Calendar, Clock, Mic2, Star, Share2, Plus, Edit2, Trash2, X, Upload, Save, CheckCircle, Activity, FileText, Check } from 'lucide-react';
+import { getPodcastsFromSupabase, savePodcastToSupabase, deletePodcastFromSupabase, PodcastEntry } from '../services/supabaseClient';
 
 interface Podcast {
-    id: number;
+    id: number | string;
     title: string;
     description: string;
     duration: string;
@@ -13,108 +14,34 @@ interface Podcast {
     transcription?: string;
 }
 
+const STATIC_EPISODES: Podcast[] = [
+    {
+        id: 0,
+        title: "⚡ Briefing Diário AI: Predictor PRO",
+        description: "Resumo operacional gerado automaticamente com os principais insights de produção, custos e eficiência das últimas 24 horas.",
+        duration: "01:30",
+        date: new Date().toLocaleDateString('pt-BR'),
+        host: "Gemini AI",
+        category: "Inteligência",
+        audioUrl: "/audio/daily_briefing.mp3"
+    },
+    {
+        id: 1,
+        title: "Mercado do Aço & Tendências 2026",
+        description: "Uma análise profunda sobre o cenário econômico global e como as novas tecnologias de hidrogênio verde estão impactando a produção de aço.",
+        duration: "12:40",
+        date: "10/02/2026",
+        host: "Ana Silva",
+        category: "Mercado",
+        audioUrl: "/audio/notebook_briefing.mp3",
+        transcription: "..."
+    }
+];
+
 export const PodcastView: React.FC = () => {
-    const [episodes, setEpisodes] = useState<Podcast[]>([
-        {
-            id: 0,
-            title: "⚡ Briefing Diário AI: Predictor PRO",
-            description: "Resumo operacional gerado automaticamente com os principais insights de produção, custos e eficiência das últimas 24 horas.",
-            duration: "01:30",
-            date: new Date().toLocaleDateString('pt-BR'),
-            host: "Gemini AI",
-            category: "Inteligência",
-            audioUrl: "/audio/daily_briefing.wav"
-        },
-        {
-            id: 1,
-            title: "Mercado do Aço & Tendências 2026",
-            description: "Uma análise profunda sobre o cenário econômico global e como as novas tecnologias de hidrogênio verde estão impactando a produção de aço.",
-            duration: "12:40",
-            date: "10/02/2026",
-            host: "Ana Silva",
-            category: "Mercado",
-            audioUrl: "/audio/explicacao_rendimento.m4a",
-            transcription: `## 1. O CONCEITO FUNDAMENTAL: O QUE É RENDIMENTO METÁLICO?
-
-Imagine que o Rendimento Metálico é a nota de eficiência da nossa fábrica. É a resposta para a pergunta: "De todo o aço que compramos (Tarugo), quanto realmente virou produto vendável e quanto virou sucata?"
-
-A fórmula básica é simples:
-Rendimento (%) = (Peso do Produto Final / Peso do Tarugo Bruto) * 100
-
-Se temos um Rendimento de 96,40%, significa que aproveitamos quase tudo. Se for 90%, estamos jogando dinheiro fora. Nosso objetivo é sempre maximizar esse percentual.
-
----
-
-## 2. A JORNADA DO AÇO: ONDE PERDEMOS PESO?
-
-O aço passa por uma "dieta forçada" durante o processo. Vamos entender cada etapa onde ele perde massa:
-
-### A. Perda ao Fogo (Scale Loss) - O "Suor" do Forno
-Quando o tarugo entra no forno de reaquecimento, a superfície oxida com o calor intenso, formando a carepa (aquela casquinha). Isso é inevitável.
-- Típico: 0.5% a 1.0% do peso.
-- Impacto: É peso que evapora ou cai como pó. Não recuperamos.
-
-### B. Desponte de Cabeça (Crop Loss - SH1) - A "Limpeza" Inicial
-Ao passar pelas gaiolas do desbaste, a ponta do tarugo pode estar fria ou deformada. A tesoura inicial (SH1) corta esse pedaço para garantir que o aço que entra no trem intermediário perfeitamente.
-- Típico: 100mm a 200mm.
-- Impacto: É sucata pesada. Necessário para evitar sucata, mas ruim para o rendimento.
-
-### C. Sobra do Leito (Bed Loss - SH2) - O "Resto" da Divisão
-Esta é a perda mais estratégica. O laminador produz uma barra contínua de centenas de metros.
-Precisamos cortar isso em barras comerciais (ex: 12 metros) para o cliente.
-A matemática é cruel: Se produzimos 100 metros e o cliente quer barras de 12m, teremos 8 barras (96m) e sobrará 4 metros.
-- Esses 4 metros são a Sobra do Leito. É sucata gerada porque o comprimento total não era múltiplo perfeito do pedido do cliente.
-- Como evitar? Planejando o tamanho do Tarugo para que a divisão seja exata! É aqui que entra o Simulador de Rendimento.
-
-### D. Perda de Acabamento (Cutting Loss) - corte da cabeça da barra com qualidade ruim gerada na sh3
-Cada vez que a serra ou tesoura corta a cabeça da barra perdemos na navalha cerca de 250 mm e na serra 500mm por cabeça de barra.
-- Parece pouco? Em mil barras, isso vira toneladas no final do mês!
-
----
-
-## 3. A LÓGICA DO "CÁLCULO OTIMIZADO"
-
-O segredo não é apenas medir as perdas, é PREVÊ-LAS. O sistema de simulação faz o caminho inverso:
-1. Pega o pedido do cliente (ex: barras de 12m).
-2. Olha para o tarugo disponível.
-3. Calcula todas as perdas inevitáveis (Fogo, Ponta).
-4. Simula a laminação virtualmente.
-5. Descobre qual seria a sobra no leito.
-
-Se a sobra for grande (ex: 3 metros), o sistema alerta: "Ei, mude o comprimento do tarugo ou mude o número de barras no leito!".
-Ao ajustar isso, transformamos o que seria sucata em produto vendido.
-
----
-
-## 4. O FUTURO
-Com ferramentas inteligentes, não precisamos mais "chutar" o melhor cenário. O algoritmo testa centenas de combinações em milissegundos e diz:
-"Para este pedido, use um tarugo de 10.45 metros. Seu rendimento subirá de 92% para 97.5%."
-
-Isso é eficiência. Isso é o estado da arte na laminação.`
-        },
-        {
-            id: 2,
-            title: "Otimizando o Consumo de Gás Natural",
-            description: "Dicas práticas de engenheiros seniores sobre como reduzir o consumo específico de gás nos fornos de reaquecimento sem perder produtividade.",
-            duration: "08:15",
-            date: "03/02/2026",
-            host: "Carlos Mendes",
-            category: "Técnico",
-            audioUrl: "/audio/explicacao_rendimento.m4a"
-        },
-        {
-            id: 3,
-            title: "Eficiência Energética na Trefilação",
-            description: "Estudo de caso da planta de Piracicaba: como a substituição de motores e o controle de demanda reduziram a conta de energia em 15%.",
-            duration: "15:30",
-            date: "27/01/2026",
-            host: "Ana Silva",
-            category: "Eficiência",
-            audioUrl: "/audio/explicacao_rendimento.m4a"
-        },
-    ]);
-
-    const [activeEpisodeId, setActiveEpisodeId] = useState<number | null>(null);
+    const [episodes, setEpisodes] = useState<Podcast[]>(STATIC_EPISODES);
+    const [isLoading, setIsLoading] = useState(true);
+    const [activeEpisodeId, setActiveEpisodeId] = useState<number | string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
     const [isTranscriptionOpen, setIsTranscriptionOpen] = useState(false);
@@ -151,6 +78,26 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
                 audio.pause();
             };
         }
+    }, []);
+
+    // Carrega os podcasts do Supabase com fallback para estáticos
+    useEffect(() => {
+        const loadPodcasts = async () => {
+            try {
+                const data = await getPodcastsFromSupabase();
+                if (data && data.length > 0) {
+                    setEpisodes(data as Podcast[]);
+                } else {
+                    setEpisodes(STATIC_EPISODES);
+                }
+            } catch (error) {
+                console.error("Erro ao carregar podcasts:", error);
+                setEpisodes(STATIC_EPISODES);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadPodcasts();
     }, []);
 
     // Carrega o texto do Briefing gerado pelo n8n automaticamente
@@ -195,7 +142,8 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
             duration: '',
             date: new Date().toLocaleDateString('pt-BR'),
             host: '',
-            category: 'Geral'
+            category: 'Geral',
+            audioUrl: ''
         });
         setIsEditing(false);
         setIsModalOpen(true);
@@ -207,25 +155,52 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
         setIsModalOpen(true);
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = async (id: number | string) => {
         if (window.confirm('Tem certeza que deseja excluir este episódio?')) {
-            setEpisodes(prev => prev.filter(p => p.id !== id));
+            try {
+                if (typeof id === 'string') {
+                    await deletePodcastFromSupabase(id);
+                }
+                setEpisodes(prev => prev.filter(p => p.id !== id));
+            } catch (err) {
+                alert("Erro ao excluir podcast: " + err);
+            }
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!currentPodcast.title || !currentPodcast.description) {
             alert("Por favor, preencha os campos obrigatórios.");
             return;
         }
 
-        if (isEditing && currentPodcast.id !== undefined) {
-            setEpisodes(prev => prev.map(p => p.id === currentPodcast.id ? currentPodcast as Podcast : p));
-        } else {
-            const newId = Math.max(...episodes.map(e => e.id), 0) + 1;
-            setEpisodes(prev => [{ ...currentPodcast, id: newId } as Podcast, ...prev]);
+        try {
+            const podcastToSave: PodcastEntry = {
+                id: currentPodcast.id as string,
+                title: currentPodcast.title || '',
+                description: currentPodcast.description || '',
+                duration: currentPodcast.duration || '00:00',
+                date: currentPodcast.date || new Date().toLocaleDateString('pt-BR'),
+                host: currentPodcast.host || 'Sistema',
+                category: currentPodcast.category || 'Geral',
+                audio_url: currentPodcast.audioUrl || '',
+                transcription: currentPodcast.transcription || ''
+            };
+
+            const result = await savePodcastToSupabase(podcastToSave);
+
+            if (result && result.length > 0) {
+                const saved = { ...result[0], audioUrl: result[0].audio_url } as Podcast;
+                if (isEditing) {
+                    setEpisodes(prev => prev.map(p => p.id === saved.id ? saved : p));
+                } else {
+                    setEpisodes(prev => [saved, ...prev]);
+                }
+            }
+            setIsModalOpen(false);
+        } catch (err) {
+            alert("Erro ao salvar podcast no Supabase: " + err);
         }
-        setIsModalOpen(false);
     };
 
     const extractBullets = (transcription?: string) => {
@@ -234,14 +209,46 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
         const bullets = lines
             .filter(line => line.trim().startsWith('## '))
             .map(line => line.replace(/^##\s+/, '').replace(/^\d+\.\s*/, '').trim());
-        return bullets.slice(0, 3); // Retorna no máximo 3 bullets
+        return bullets.slice(0, 3);
     };
 
-    const handleShareWhatsApp = (ep: Podcast) => {
-        const appUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-        const text = `*Novo Episódio:* ${ep.title}\n\n${ep.description}\n\nOuça agora em: ${appUrl}`;
+    const handleShareWhatsApp = async (ep: Podcast) => {
+        const audioUrl = ep.audioUrl || '/audio/daily_briefing.mp3';
+        const fullAudioUrl = window.location.origin + audioUrl;
+
+        if (navigator.share && navigator.canShare) {
+            try {
+                const response = await fetch(audioUrl);
+                const blob = await response.blob();
+                const fileType = audioUrl.endsWith('.mp3') ? 'audio/mpeg' : blob.type || 'audio/mpeg';
+                const file = new File([blob], audioUrl.split('/').pop() || 'podcast.mp3', { type: fileType });
+
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: ep.title,
+                        text: ep.description,
+                    });
+                    return;
+                }
+            } catch (error) {
+                console.error('Erro ao compartilhar arquivo:', error);
+            }
+        }
+
+        const text = `*Episódio:* ${ep.title}\n\n${ep.description}\n\nOuça: ${fullAudioUrl}`;
         const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
         window.open(url, '_blank');
+    };
+
+    const handleDownload = async (ep: Podcast) => {
+        const audioUrl = ep.audioUrl || '/audio/daily_briefing.mp3';
+        const link = document.createElement('a');
+        link.href = audioUrl;
+        link.download = audioUrl.split('/').pop() || 'podcast.mp3';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     return (
@@ -251,22 +258,22 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
                 <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-white/10 rounded-full -mr-32 -mt-64 blur-3xl"></div>
                 <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-black/20 rounded-full -ml-32 -mb-48 blur-3xl"></div>
 
-                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-12 gap-10">
-                    <div className="flex-1 max-w-2xl">
+                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between p-6 md:p-12 gap-6 md:gap-10">
+                    <div className="flex-1 w-full max-w-2xl text-center lg:text-left">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/20 text-xs font-bold uppercase tracking-widest mb-6">
-                            <Headphones size={14} /> Industrial Predictor Cast
+                            <Headphones size={14} /> Predictor Cast
                         </div>
-                        <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-tight">
-                            A Voz da Indústria <br /> <span className="text-purple-200">Inteligente</span>
+                        <h1 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight mb-4 md:mb-6 leading-tight break-words">
+                            A Voz da Indústria <br className="hidden md:block" /> <span className="text-purple-200">Inteligente</span>
                         </h1>
-                        <p className="text-lg text-purple-100 font-medium leading-relaxed mb-8 max-w-xl">
+                        <p className="text-base md:text-lg text-purple-100 font-medium leading-relaxed mb-6 md:mb-8 max-w-xl mx-auto lg:mx-0">
                             Insights semanais, entrevistas com especialistas e as últimas tendências do setor siderúrgico e industrial, direto no seu dashboard.
                         </p>
-                        <div className="flex items-center gap-4">
-                            <button onClick={handleAddNew} className="px-8 py-4 bg-white text-purple-600 rounded-2xl font-black shadow-lg hover:scale-105 transition-all flex items-center gap-3">
-                                <Plus size={20} /> Novo Episódio
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-3 md:gap-4">
+                            <button onClick={handleAddNew} className="px-6 py-3 md:px-8 md:py-4 bg-white text-purple-600 rounded-2xl font-black shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3">
+                                <Plus size={20} /> Novo
                             </button>
-                            <button className="px-8 py-4 bg-purple-800/50 hover:bg-purple-800/70 border border-purple-400/30 text-white rounded-2xl font-bold transition-all backdrop-blur-md">
+                            <button className="px-6 py-3 md:px-8 md:py-4 bg-purple-800/50 hover:bg-purple-800/70 border border-purple-400/30 text-white rounded-2xl font-bold transition-all backdrop-blur-md whitespace-nowrap">
                                 Explorar Todos
                             </button>
                         </div>
@@ -331,13 +338,22 @@ Isso é eficiência. Isso é o estado da arte na laminação.`
                                 </div>
 
                                 <div className="flex flex-col gap-2 shrink-0">
-                                    <button
-                                        onClick={() => handleShareWhatsApp(ep)}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold rounded-xl transition-all"
-                                        title="Compartilhar no WhatsApp"
-                                    >
-                                        <Share2 size={16} /> <span className="text-xs hidden md:inline">Compartilhar</span>
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleShareWhatsApp(ep)}
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold rounded-xl transition-all"
+                                            title="Compartilhar"
+                                        >
+                                            <Share2 size={16} /> <span className="text-xs">Enviar</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleDownload(ep)}
+                                            className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl transition-all"
+                                            title="Baixar MP3"
+                                        >
+                                            <Upload size={16} className="rotate-180" />
+                                        </button>
+                                    </div>
                                     <div className="flex gap-2 w-full">
                                         {ep.transcription && (
                                             <button onClick={() => { setActiveTranscription(ep.transcription || null); setIsTranscriptionOpen(true); }} className="flex-1 p-2 bg-slate-50 hover:bg-purple-50 hover:text-purple-600 rounded-xl text-slate-400 flex items-center justify-center transition-colors" title="Ler Narração">

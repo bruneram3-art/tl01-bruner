@@ -44,25 +44,29 @@ function findLatestFile() {
 
         const fullMonthPath = path.join(yearPath, monthFolder);
         const files = fs.readdirSync(fullMonthPath);
-        const revRegex = /Revisão_(\d+)/i;
+        // Suporta tanto "Revisão_XX" quanto "Prévia_XX"
+        const revRegex = /(?:Revisão|Prévia)_(\d+)/i;
 
         let latestFile = null;
-        let maxRev = -1;
+        let latestMtime = 0;
+        let bestRev = -1;
 
         files.forEach(file => {
             if (!file.endsWith('.xlsx') || file.includes('~$')) return;
             const match = file.match(revRegex);
             if (match) {
-                const rev = parseInt(match[1], 10);
-                if (rev > maxRev) {
-                    maxRev = rev;
+                const fullPath = path.join(fullMonthPath, file);
+                const stats = fs.statSync(fullPath);
+                if (stats.mtimeMs > latestMtime) {
+                    latestMtime = stats.mtimeMs;
                     latestFile = file;
+                    bestRev = parseInt(match[1], 10);
                 }
             }
         });
 
         if (!latestFile) {
-            console.error('❌ Nenhum arquivo com "Revisão_XX" encontrado.');
+            console.error('❌ Nenhum arquivo com "Revisão_XX" ou "Prévia_XX" encontrado.');
             return null;
         }
 
@@ -73,7 +77,7 @@ function findLatestFile() {
             metadata: {
                 year,
                 month: monthName,
-                revision: maxRev,
+                revision: bestRev,
                 source: fullFilePath,
                 fileName: latestFile,
                 modifiedAt: stats.mtime
@@ -240,6 +244,10 @@ async function uploadPCP() {
         if (refMonth >= 0 && refYear > 0 && inicioCol) {
             const monthStart = new Date(Date.UTC(refYear, refMonth, 1, 0, 0, 0));
             const monthEnd = new Date(Date.UTC(refYear, refMonth + 1, 0, 23, 59, 59));
+            // Define um limite de tolerância para o início do mês (ex: 10 dias antes)
+            // Isso garante que as "primeiras linhas" do Excel, mesmo que do fim do mês passado, sejam incluídas.
+            const earlyGracePeriod = new Date(monthStart);
+            earlyGracePeriod.setUTCDate(earlyGracePeriod.getUTCDate() - 10);
 
             filteredByMonth = processed.filter(row => {
                 const inicioVal = row[inicioCol];
@@ -254,12 +262,15 @@ async function uploadPCP() {
                 const terminoColLocal = headers.find(h => h.toLowerCase().includes('término') || h.toLowerCase().includes('termino'));
                 const dTermino = terminoColLocal ? excelSerialToDate(row[terminoColLocal]) : null;
 
-                const lastMinute = new Date(Date.UTC(refYear, refMonth + 1, 0, 23, 45, 0));
+                // CRITÉRIO DE INCLUSÃO RELAXADO:
+                // 1. Começa dentro do mês
+                const startsInMonth = date && date >= monthStart && date <= monthEnd;
+                // 2. Começou antes mas terminou dentro (transição)
+                const overlapsMonthStart = date && date < monthStart && dTermino && dTermino > monthStart;
+                // 3. É uma das "primeiras linhas" do arquivo (iniciou nos últimos 10 dias do mês anterior)
+                const isInitialTransition = date && date >= earlyGracePeriod && date < monthStart;
 
-                const startsInMonth = date && date >= monthStart && date < lastMinute;
-                const overlapsStart = date && date < monthStart && dTermino && dTermino > monthStart;
-
-                if (startsInMonth || overlapsStart) return true;
+                if (startsInMonth || overlapsMonthStart || isInitialTransition) return true;
                 return false;
             });
 
@@ -269,32 +280,9 @@ async function uploadPCP() {
                 return valA - valB;
             });
 
-            // === PASSO 8A: Ajuste da primeira ordem (Trimming de Início) ===
-            // Se a primeira ordem começou no mês anterior, ajustamos o início e a produção
-            if (filteredByMonth.length > 0) {
-                const firstRow = filteredByMonth[0];
-                const dInicio = excelSerialToDate(firstRow[inicioCol]);
-                const terminoColLocal = headers.find(h => h.toLowerCase().includes('término') || h.toLowerCase().includes('termino'));
-                const dTermino = terminoColLocal ? excelSerialToDate(firstRow[terminoColLocal]) : null;
-
-                if (dInicio && dInicio < monthStart && dTermino && dTermino > monthStart) {
-                    const originalDuration = dTermino.getTime() - dInicio.getTime();
-                    const newDuration = dTermino.getTime() - monthStart.getTime();
-                    const ratio = newDuration / originalDuration;
-
-                    const prodAtual = parseFloat(String(firstRow['Qtde REAL (t)'] || firstRow['Prod. Acab. (t)'] || '0')) || 0;
-                    const prodNova = Math.round((prodAtual * ratio) * 100) / 100;
-
-                    console.log(`\n   📐 Ajuste da primeira ordem (Cruzamento de Mês):`);
-                    console.log(`      ${firstRow['Descrição']} | Início original: ${dInicio.toISOString()}`);
-                    console.log(`      Produção: ${prodAtual.toFixed(2)} -> ${prodNova.toFixed(2)} t (Apenas parte de ${refMonth + 1}/${refYear})`);
-
-                    firstRow['Qtde REAL (t)'] = prodNova;
-                    firstRow['Prod. Acab. (t)'] = prodNova;
-                    const monthStartSerial = (monthStart.getTime() / 86400000) + 25569;
-                    firstRow[inicioCol] = monthStartSerial;
-                }
-            }
+            // === PASSO 8A: Ajuste da primeira ordem (Trimming de Início) - REMOVIDO ===
+            // Decisão: Manter produção integral da primeira linha conforme sugestão do usuário para atingir 21645t.
+            console.log(`   ℹ️ Incluindo primeira linha do mês integralmente (inclusive se iniciada no mês anterior).`);
 
             console.log(`   Linhas filtradas para ${refMonth + 1}/${refYear}: ${filteredByMonth.length}`);
 
@@ -381,7 +369,8 @@ async function uploadPCP() {
             dia_semana: String(getColumnValue(row, ['Dia da Semana'], false) || '').trim(),
 
             // --- Produção e Métricas ---
-            producao_planejada: getColumnValue(row, ['Qtde REAL (t)', 'Prod. Acab. (t)', 'Producao', 'Produção', 'Qtd. Planejada', 'Quantidade'], true),
+            // --- Produção e Métricas ---
+            producao_planejada: getColumnValue(row, ['Qtde REAL (t)', 'producao_planejada'], true),
             producao_apontada: getColumnValue(row, ['Produção Apontada'], true),
             pecas: getColumnValue(row, ['Peças', 'Pecas'], true),
             massa_linear: getColumnValue(row, ['Massa Linear', 'Massa'], true),

@@ -2,6 +2,7 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // Plugin personalizado para salvar áudios enviados pelo n8n
 function audioApiPlugin() {
@@ -65,6 +66,41 @@ function audioApiPlugin() {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ status: 'online', files }));
       });
+
+      // Cache simples: dashboard faz POST com o valor exato do card, n8n faz GET para ler
+      let cachedForecast: any = null;
+
+      server.middlewares.use('/api/forecast', (req: any, res: any) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
+
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk: any) => { body += chunk.toString(); });
+          req.on('end', () => {
+            try {
+              cachedForecast = JSON.parse(body);
+              console.log(`✅ [FORECAST] Valores recebidos: Prod=${cachedForecast.previsaoFechamento}, GN=${cachedForecast.previsaoGas}, EE=${cachedForecast.previsaoEnergia}`);
+              res.statusCode = 200;
+              res.end(JSON.stringify({ success: true }));
+            } catch (e: any) { res.statusCode = 400; res.end(JSON.stringify({ error: e.message })); }
+          });
+          return;
+        }
+
+        // GET: retorna o valor exato enviado pelo dashboard
+        if (cachedForecast) {
+          res.statusCode = 200;
+          res.end(JSON.stringify(cachedForecast));
+        } else {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ error: 'Dashboard ainda nao enviou dados.' }));
+        }
+      });
     }
   };
 }
@@ -72,12 +108,44 @@ function audioApiPlugin() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
+    base: './',
     server: {
       port: 3000,
       host: '0.0.0.0',
       open: true,
     },
-    plugins: [react(), audioApiPlugin()],
+    plugins: [
+      react(),
+      audioApiPlugin(),
+      VitePWA({
+        registerType: 'prompt',
+        injectRegister: 'auto',
+        manifest: {
+          name: 'Industrial Predictor Pro',
+          short_name: 'TL01 Predictor',
+          description: 'Dashboard Operacional e Simulador Avançado ArcelorMittal',
+          theme_color: '#f8fafc',
+          background_color: '#f8fafc',
+          display: 'standalone',
+          icons: [
+            {
+              src: 'pwa-192x192.png',
+              sizes: '192x192',
+              type: 'image/png'
+            },
+            {
+              src: 'pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png'
+            }
+          ]
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          maximumFileSizeToCacheInBytes: 5000000
+        }
+      })
+    ],
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
